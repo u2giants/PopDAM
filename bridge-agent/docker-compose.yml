@@ -29,8 +29,8 @@ services:
     env_file:
       - .env
     volumes:
-      # Mount the NAS shared folder(s) — adjust paths to match your Synology setup
-      - /volume1/Design:/mnt/nas/Design:ro
+      # Mount the NAS shared folder — Synology 'mac' share
+      - /volume1/mac:/mnt/nas/mac:ro
       # Local data directory for scan state & generated thumbnails
       - agent-data:/app/data
     environment:

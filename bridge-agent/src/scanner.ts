@@ -56,7 +56,7 @@ async function quickHash(filePath: string): Promise<string> {
 
 /** Convert container path back to UNC-style NAS path */
 function toUncPath(containerPath: string): string {
-  // /mnt/nas/Design/Foo/bar.psd → \\edgesynology2\Design\Foo\bar.psd
+  // /mnt/nas/mac/Decor/Foo/bar.psd → \\edgesynology2\mac\Decor\Foo\bar.psd
   const relative = containerPath.replace(/^\/mnt\/nas\//, "");
   return `\\\\${config.agentName}\\${relative.replace(/\//g, "\\")}`;
 }
