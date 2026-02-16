@@ -14,16 +14,482 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      agent_registrations: {
+        Row: {
+          agent_key: string
+          agent_name: string
+          created_at: string
+          id: string
+          last_heartbeat: string
+          metadata: Json | null
+        }
+        Insert: {
+          agent_key: string
+          agent_name: string
+          created_at?: string
+          id?: string
+          last_heartbeat?: string
+          metadata?: Json | null
+        }
+        Update: {
+          agent_key?: string
+          agent_name?: string
+          created_at?: string
+          id?: string
+          last_heartbeat?: string
+          metadata?: Json | null
+        }
+        Relationships: []
+      }
+      asset_characters: {
+        Row: {
+          asset_id: string
+          character_id: string
+          id: string
+        }
+        Insert: {
+          asset_id: string
+          character_id: string
+          id?: string
+        }
+        Update: {
+          asset_id?: string
+          character_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_characters_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asset_characters_character_id_fkey"
+            columns: ["character_id"]
+            isOneToOne: false
+            referencedRelation: "characters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assets: {
+        Row: {
+          ai_description: string | null
+          art_source: Database["public"]["Enums"]["art_source"] | null
+          artboards: number
+          asset_type: Database["public"]["Enums"]["asset_type"] | null
+          big_theme: string | null
+          color_placeholder: string | null
+          created_at: string
+          design_ref: string | null
+          design_style: string | null
+          file_path: string
+          file_size: number
+          file_type: Database["public"]["Enums"]["file_type"]
+          filename: string
+          height: number
+          id: string
+          ingested_at: string
+          is_licensed: boolean
+          licensor_id: string | null
+          little_theme: string | null
+          modified_at: string
+          product_subtype_id: string | null
+          property_id: string | null
+          status: Database["public"]["Enums"]["asset_status"]
+          thumbnail_url: string | null
+          width: number
+        }
+        Insert: {
+          ai_description?: string | null
+          art_source?: Database["public"]["Enums"]["art_source"] | null
+          artboards?: number
+          asset_type?: Database["public"]["Enums"]["asset_type"] | null
+          big_theme?: string | null
+          color_placeholder?: string | null
+          created_at?: string
+          design_ref?: string | null
+          design_style?: string | null
+          file_path: string
+          file_size?: number
+          file_type: Database["public"]["Enums"]["file_type"]
+          filename: string
+          height?: number
+          id?: string
+          ingested_at?: string
+          is_licensed?: boolean
+          licensor_id?: string | null
+          little_theme?: string | null
+          modified_at?: string
+          product_subtype_id?: string | null
+          property_id?: string | null
+          status?: Database["public"]["Enums"]["asset_status"]
+          thumbnail_url?: string | null
+          width?: number
+        }
+        Update: {
+          ai_description?: string | null
+          art_source?: Database["public"]["Enums"]["art_source"] | null
+          artboards?: number
+          asset_type?: Database["public"]["Enums"]["asset_type"] | null
+          big_theme?: string | null
+          color_placeholder?: string | null
+          created_at?: string
+          design_ref?: string | null
+          design_style?: string | null
+          file_path?: string
+          file_size?: number
+          file_type?: Database["public"]["Enums"]["file_type"]
+          filename?: string
+          height?: number
+          id?: string
+          ingested_at?: string
+          is_licensed?: boolean
+          licensor_id?: string | null
+          little_theme?: string | null
+          modified_at?: string
+          product_subtype_id?: string | null
+          property_id?: string | null
+          status?: Database["public"]["Enums"]["asset_status"]
+          thumbnail_url?: string | null
+          width?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assets_licensor_id_fkey"
+            columns: ["licensor_id"]
+            isOneToOne: false
+            referencedRelation: "licensors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assets_product_subtype_id_fkey"
+            columns: ["product_subtype_id"]
+            isOneToOne: false
+            referencedRelation: "product_subtypes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assets_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      characters: {
+        Row: {
+          created_at: string
+          external_id: string | null
+          id: string
+          name: string
+          property_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          external_id?: string | null
+          id?: string
+          name: string
+          property_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          external_id?: string | null
+          id?: string
+          name?: string
+          property_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "characters_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      licensors: {
+        Row: {
+          created_at: string
+          external_id: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          external_id?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          external_id?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      processing_queue: {
+        Row: {
+          agent_id: string | null
+          asset_id: string
+          claimed_at: string | null
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          job_type: string
+          status: Database["public"]["Enums"]["queue_status"]
+        }
+        Insert: {
+          agent_id?: string | null
+          asset_id: string
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          job_type?: string
+          status?: Database["public"]["Enums"]["queue_status"]
+        }
+        Update: {
+          agent_id?: string | null
+          asset_id?: string
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          job_type?: string
+          status?: Database["public"]["Enums"]["queue_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "processing_queue_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agent_registrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "processing_queue_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_categories: {
+        Row: {
+          created_at: string
+          external_id: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          external_id?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          external_id?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      product_subtypes: {
+        Row: {
+          created_at: string
+          external_id: string | null
+          id: string
+          name: string
+          type_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          external_id?: string | null
+          id?: string
+          name: string
+          type_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          external_id?: string | null
+          id?: string
+          name?: string
+          type_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_subtypes_type_id_fkey"
+            columns: ["type_id"]
+            isOneToOne: false
+            referencedRelation: "product_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_types: {
+        Row: {
+          category_id: string
+          created_at: string
+          external_id: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string
+          external_id?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string
+          external_id?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_types_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "product_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      properties: {
+        Row: {
+          created_at: string
+          external_id: string | null
+          id: string
+          licensor_id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          external_id?: string | null
+          id?: string
+          licensor_id: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          external_id?: string | null
+          id?: string
+          licensor_id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "properties_licensor_id_fkey"
+            columns: ["licensor_id"]
+            isOneToOne: false
+            referencedRelation: "licensors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      claim_jobs: {
+        Args: { p_agent_id: string; p_batch_size?: number }
+        Returns: {
+          agent_id: string | null
+          asset_id: string
+          claimed_at: string | null
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          job_type: string
+          status: Database["public"]["Enums"]["queue_status"]
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "processing_queue"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      reset_stale_jobs: {
+        Args: { p_timeout_minutes?: number }
+        Returns: number
+      }
     }
     Enums: {
-      [_ in never]: never
+      art_source:
+        | "freelancer"
+        | "straight_style_guide"
+        | "style_guide_composition"
+      asset_status: "pending" | "processing" | "tagged" | "error"
+      asset_type: "art_piece" | "product"
+      file_type: "psd" | "ai"
+      queue_status:
+        | "pending"
+        | "claimed"
+        | "processing"
+        | "completed"
+        | "failed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +616,16 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      art_source: [
+        "freelancer",
+        "straight_style_guide",
+        "style_guide_composition",
+      ],
+      asset_status: ["pending", "processing", "tagged", "error"],
+      asset_type: ["art_piece", "product"],
+      file_type: ["psd", "ai"],
+      queue_status: ["pending", "claimed", "processing", "completed", "failed"],
+    },
   },
 } as const
