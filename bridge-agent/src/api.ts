@@ -1,0 +1,78 @@
+import { config } from "./config";
+
+const baseUrl = `${config.supabaseUrl}/functions/v1/agent-api`;
+
+const headers = {
+  "Content-Type": "application/json",
+  apikey: config.supabaseAnonKey,
+  Authorization: `Bearer ${config.supabaseAnonKey}`,
+  "x-agent-key": config.agentKey,
+};
+
+async function post(action: string, body: Record<string, unknown>) {
+  const res = await fetch(`${baseUrl}/${action}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(`API ${action} failed (${res.status}): ${JSON.stringify(data)}`);
+  }
+  return data;
+}
+
+/** Register or re-register this agent */
+export async function registerAgent() {
+  const result = await post("register", {
+    agent_name: config.agentName,
+    agent_key: config.agentKey,
+    metadata: {
+      hostname: config.agentName,
+      scan_roots: config.scanRoots,
+      started_at: new Date().toISOString(),
+    },
+  });
+  console.log(`[API] Registered as agent ${result.agent.id}`);
+  return result.agent;
+}
+
+/** Send heartbeat */
+export async function heartbeat() {
+  return post("heartbeat", { agent_key: config.agentKey });
+}
+
+/** Ingest a new asset */
+export async function ingestAsset(asset: {
+  filename: string;
+  file_path: string;
+  file_type: string;
+  file_size: number;
+  width: number;
+  height: number;
+  artboards: number;
+  color_placeholder?: string;
+  thumbnail_url?: string;
+}) {
+  return post("ingest", asset);
+}
+
+/** Claim processing jobs */
+export async function claimJobs(agentId: string, batchSize = 5) {
+  return post("claim", { agent_id: agentId, batch_size: batchSize });
+}
+
+/** Complete a job */
+export async function completeJob(
+  jobId: string,
+  status: "completed" | "failed",
+  assetUpdates?: Record<string, unknown>,
+  errorMessage?: string
+) {
+  return post("complete", {
+    job_id: jobId,
+    status,
+    asset_updates: assetUpdates,
+    error_message: errorMessage,
+  });
+}
