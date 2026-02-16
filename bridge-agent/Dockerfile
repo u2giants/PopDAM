@@ -1,4 +1,5 @@
-FROM node:20-slim
+# === Stage 1: Base with system dependencies (cached unless Dockerfile changes) ===
+FROM node:20-slim AS base
 
 # Install Ghostscript + Inkscape for AI/EPS rendering, and other utils
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -13,11 +14,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install dependencies
+# === Stage 2: Dependencies (only re-runs if package.json changes) ===
 COPY package.json package-lock.json* ./
 RUN npm install
 
-# Copy source
+# === Stage 3: App code (re-runs on any code change — fast) ===
 COPY tsconfig.json ./
 COPY src/ ./src/
 
