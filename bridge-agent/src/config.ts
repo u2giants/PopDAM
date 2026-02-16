@@ -23,6 +23,12 @@ export const config = {
   thumbnailMaxSize: parseInt(env("THUMBNAIL_MAX_SIZE", "800"), 10),
   thumbnailQuality: parseInt(env("THUMBNAIL_QUALITY", "85"), 10),
 
+  // DigitalOcean Spaces (S3-compatible)
+  spacesKey: env("DO_SPACES_KEY", ""),
+  spacesSecret: env("DO_SPACES_SECRET", ""),
+  spacesRegion: env("DO_SPACES_REGION", "nyc3"),
+  spacesBucket: env("DO_SPACES_BUCKET", "popdam"),
+
   // Internal paths
   dataDir: env("DATA_DIR", path.join(process.cwd(), "data")),
 };
