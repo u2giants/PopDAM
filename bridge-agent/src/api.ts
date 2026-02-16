@@ -9,7 +9,7 @@ const headers = {
   "x-agent-key": config.agentKey,
 };
 
-async function post(action: string, body: Record<string, unknown>) {
+async function post(action: string, body: Record<string, unknown>): Promise<any> {
   const res = await fetch(`${baseUrl}/${action}`, {
     method: "POST",
     headers,
