@@ -26,24 +26,74 @@ async function ensureDir() {
  * can read PSD format directly for the flattened composite.
  */
 async function thumbnailFromPsd(filePath: string, outputPath: string): Promise<ThumbnailResult> {
-  const image = sharp(filePath, { pages: 0 }); // page 0 = composite
-  const metadata = await image.metadata();
+  const tempPng = outputPath.replace(/\.jpg$/, ".tmp.png");
 
-  const resized = image.resize({
-    width: config.thumbnailMaxSize,
-    height: config.thumbnailMaxSize,
-    fit: "inside",
-    withoutEnlargement: true,
-  });
+  // Attempt 1: sharp (works for standard PSD with flattened composite)
+  try {
+    const image = sharp(filePath, { pages: 0 });
+    const metadata = await image.metadata();
 
-  await resized.jpeg({ quality: config.thumbnailQuality }).toFile(outputPath);
+    await image.resize({
+      width: config.thumbnailMaxSize,
+      height: config.thumbnailMaxSize,
+      fit: "inside",
+      withoutEnlargement: true,
+    }).jpeg({ quality: config.thumbnailQuality }).toFile(outputPath);
 
-  const outMeta = await sharp(outputPath).metadata();
-  return {
-    thumbnailPath: outputPath,
-    width: metadata.width || 0,
-    height: metadata.height || 0,
-  };
+    return {
+      thumbnailPath: outputPath,
+      width: metadata.width || 0,
+      height: metadata.height || 0,
+    };
+  } catch {
+    // sharp can't read this PSD, fall through
+  }
+
+  // Attempt 2: ImageMagick convert (handles PSB, complex PSDs)
+  try {
+    // [0] selects the flattened composite / first layer
+    await execFileAsync("convert", [
+      `${filePath}[0]`,
+      "-resize", `${config.thumbnailMaxSize}x${config.thumbnailMaxSize}>`,
+      "-quality", config.thumbnailQuality.toString(),
+      outputPath,
+    ]);
+
+    const metadata = await sharp(outputPath).metadata();
+    return {
+      thumbnailPath: outputPath,
+      width: metadata.width || 0,
+      height: metadata.height || 0,
+    };
+  } catch {
+    // ImageMagick failed, try Ghostscript
+  }
+
+  // Attempt 3: Ghostscript (PSD as PostScript-ish)
+  try {
+    await execFileAsync("gs", [
+      "-dNOPAUSE", "-dBATCH", "-dSAFER",
+      "-sDEVICE=png16m", "-r150",
+      "-dFirstPage=1", "-dLastPage=1",
+      `-sOutputFile=${tempPng}`,
+      filePath,
+    ]);
+
+    const metadata = await sharp(tempPng).metadata();
+    await sharp(tempPng)
+      .resize({ width: config.thumbnailMaxSize, height: config.thumbnailMaxSize, fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: config.thumbnailQuality })
+      .toFile(outputPath);
+
+    await fs.unlink(tempPng).catch(() => {});
+    return {
+      thumbnailPath: outputPath,
+      width: metadata.width || 0,
+      height: metadata.height || 0,
+    };
+  } catch (err) {
+    throw new Error(`All PSD thumbnail methods failed for ${filePath}: ${err}`);
+  }
 }
 
 /**
