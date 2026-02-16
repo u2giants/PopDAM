@@ -10,7 +10,7 @@ export const config = {
   agentKey: env("AGENT_KEY", "bridge-agent-edgesynology2"),
 
   // Scanning
-  scanRoots: env("SCAN_ROOTS", "/mnt/nas/Design")
+  scanRoots: env("SCAN_ROOTS", "/mnt/nas/mac/Decor/Character Licensed,/mnt/nas/mac/Decor/Generic Decor")
     .split(",")
     .map((s) => s.trim()),
   scanMinDate: env("SCAN_MIN_DATE", "2020-01-01"),
