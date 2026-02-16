@@ -42,7 +42,7 @@ const AssetCard = ({ asset, onClick }: AssetCardProps) => {
   const colorPlaceholder = getPlaceholder(asset);
   const tags = [
     ...(asset.property ? [{ label: asset.property.name, type: "property" }] : []),
-    ...asset.characters.map((c) => ({ label: c.name, type: "character" })),
+    ...(asset.characters ?? []).map((c) => ({ label: c.name, type: "character" })),
     ...(asset.product_subtype ? [{ label: asset.product_subtype.name, type: "product" }] : []),
   ];
 
