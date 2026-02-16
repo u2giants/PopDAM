@@ -18,7 +18,7 @@ COPY tsconfig.json ./
 COPY src/ ./src/
 
 # Build TypeScript
-RUN npx tsc
+RUN ./node_modules/.bin/tsc
 
 # Run
 CMD ["node", "dist/index.js"]
