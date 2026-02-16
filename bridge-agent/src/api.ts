@@ -62,6 +62,11 @@ export async function claimJobs(agentId: string, batchSize = 5) {
   return post("claim", { agent_id: agentId, batch_size: batchSize });
 }
 
+/** Update an asset (e.g. thumbnail, dimensions) */
+export async function updateAsset(assetId: string, updates: Record<string, unknown>) {
+  return post("update-asset", { asset_id: assetId, ...updates });
+}
+
 /** Complete a job */
 export async function completeJob(
   jobId: string,

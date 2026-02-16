@@ -1,7 +1,7 @@
 import { config } from "./config";
-import { registerAgent, heartbeat, ingestAsset } from "./api";
+import { registerAgent, heartbeat, ingestAsset, updateAsset } from "./api";
 import { scan, ScannedFile } from "./scanner";
-import { generateThumbnail } from "./thumbnail";
+import { generateThumbnail, readThumbnailBase64 } from "./thumbnail";
 
 let agentId: string;
 
@@ -24,13 +24,18 @@ async function processBatch(files: ScannedFile[]) {
         artboards: 1,
       });
 
-      // 2. Generate thumbnail
+      // 2. Generate thumbnail and upload
       try {
         const thumb = await generateThumbnail(file.filePath, file.fileType, asset.id);
-        console.log(`[Agent] Thumbnail generated: ${thumb.width}x${thumb.height}`);
+        const base64 = await readThumbnailBase64(thumb.thumbnailPath);
+        const dataUri = `data:image/jpeg;base64,${base64}`;
 
-        // TODO: Upload thumbnail to storage and update asset.thumbnail_url
-        // For now, thumbnail is stored locally at thumb.thumbnailPath
+        await updateAsset(asset.id, {
+          thumbnail_url: dataUri,
+          width: thumb.width,
+          height: thumb.height,
+        });
+        console.log(`[Agent] Thumbnail uploaded: ${thumb.width}x${thumb.height}`);
       } catch (thumbErr: any) {
         console.warn(`[Agent] Thumbnail failed for ${file.filename}: ${thumbErr.message}`);
       }

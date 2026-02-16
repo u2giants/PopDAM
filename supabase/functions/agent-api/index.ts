@@ -139,6 +139,22 @@ Deno.serve(async (req) => {
       return json({ asset, queued: true });
     }
 
+    // --- UPDATE ASSET (e.g. thumbnail_url, dimensions) ---
+    if (action === "update-asset" && req.method === "POST") {
+      const { asset_id, ...updates } = await req.json();
+      if (!asset_id) return json({ error: "asset_id required" }, 400);
+
+      const { data, error } = await supabase
+        .from("assets")
+        .update(updates)
+        .eq("id", asset_id)
+        .select()
+        .single();
+
+      if (error) return json({ error: error.message }, 500);
+      return json({ asset: data });
+    }
+
     // --- RESET STALE ---
     if (action === "reset-stale" && req.method === "POST") {
       const { timeout_minutes } = await req.json().catch(() => ({}));
