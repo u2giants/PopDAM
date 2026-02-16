@@ -1,0 +1,20 @@
+{
+  "name": "dam-bridge-agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DAM Bridge Agent — runs on Synology NAS to scan, extract thumbnails, and ingest assets",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "npx tsx src/index.ts"
+  },
+  "dependencies": {
+    "sharp": "^0.33.2",
+    "psd": "^3.4.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.11.0",
+    "tsx": "^4.7.0"
+  }
+}

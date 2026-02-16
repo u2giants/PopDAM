@@ -1,0 +1,45 @@
+version: "3.8"
+
+services:
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: dam-tailscale
+    hostname: edgesynology2
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - TS_AUTHKEY=${TAILSCALE_AUTH_KEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=false
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    networks:
+      - dam-net
+
+  agent:
+    build: .
+    container_name: dam-bridge-agent
+    restart: unless-stopped
+    depends_on:
+      - tailscale
+    network_mode: "service:tailscale"
+    env_file:
+      - .env
+    volumes:
+      # Mount the NAS shared folder(s) — adjust paths to match your Synology setup
+      - /volume1/Design:/mnt/nas/Design:ro
+      # Local data directory for scan state & generated thumbnails
+      - agent-data:/app/data
+    environment:
+      - NODE_ENV=production
+
+volumes:
+  tailscale-state:
+  agent-data:
+
+networks:
+  dam-net:
+    driver: bridge
