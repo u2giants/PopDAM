@@ -1,68 +1,53 @@
 import { useState } from "react";
-import { AssetTag, TagCategory } from "@/types/dam";
-import { ChevronDown, ChevronRight, X, Server, Clock, FileType } from "lucide-react";
+import { ChevronDown, ChevronRight, Server, Clock, FileType } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useLicensors, useProperties } from "@/hooks/useAssets";
 
 interface FilterSidebarProps {
-  tags: AssetTag[];
-  selectedTags: string[];
-  onTagToggle: (tagId: string) => void;
   selectedFileTypes: string[];
   onFileTypeToggle: (type: string) => void;
   selectedStatuses: string[];
   onStatusToggle: (status: string) => void;
+  selectedLicensorIds: string[];
+  onLicensorToggle: (id: string) => void;
+  selectedPropertyIds: string[];
+  onPropertyToggle: (id: string) => void;
   onClearAll: () => void;
   isOpen: boolean;
 }
 
-const categoryLabels: Record<TagCategory, string> = {
-  license: "License / IP",
-  character: "Characters",
-  product: "Product Type",
-  scene: "Scene Type",
-};
-
-const categoryIcons: Record<TagCategory, string> = {
-  license: "🏷️",
-  character: "🦸",
-  product: "📦",
-  scene: "🎬",
-};
-
 const FilterSidebar = ({
-  tags,
-  selectedTags,
-  onTagToggle,
   selectedFileTypes,
   onFileTypeToggle,
   selectedStatuses,
   onStatusToggle,
+  selectedLicensorIds,
+  onLicensorToggle,
+  selectedPropertyIds,
+  onPropertyToggle,
   onClearAll,
   isOpen,
 }: FilterSidebarProps) => {
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
-    new Set(["license", "character", "product", "scene"])
+  const { data: licensors = [] } = useLicensors();
+  const { data: properties = [] } = useProperties();
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(
+    new Set(["fileType", "status", "licensors", "properties"])
   );
 
   if (!isOpen) return null;
 
-  const toggleCategory = (cat: string) => {
-    setExpandedCategories((prev) => {
+  const toggleSection = (s: string) => {
+    setExpandedSections((prev) => {
       const next = new Set(prev);
-      next.has(cat) ? next.delete(cat) : next.add(cat);
+      next.has(s) ? next.delete(s) : next.add(s);
       return next;
     });
   };
 
-  const grouped = tags.reduce<Record<TagCategory, AssetTag[]>>((acc, tag) => {
-    if (!acc[tag.category]) acc[tag.category] = [];
-    acc[tag.category].push(tag);
-    return acc;
-  }, {} as Record<TagCategory, AssetTag[]>);
-
-  const totalSelected = selectedTags.length + selectedFileTypes.length + selectedStatuses.length;
+  const totalSelected =
+    selectedFileTypes.length + selectedStatuses.length + selectedLicensorIds.length + selectedPropertyIds.length;
 
   return (
     <div className="w-64 border-r border-border bg-surface-overlay h-full overflow-y-auto scrollbar-thin animate-slide-in-right">
@@ -126,41 +111,79 @@ const FilterSidebar = ({
         </div>
       </div>
 
-      {/* Tag Categories */}
-      {(Object.entries(grouped) as [TagCategory, AssetTag[]][]).map(([category, catTags]) => (
-        <div key={category} className="border-b border-border">
-          <button
-            onClick={() => toggleCategory(category)}
-            className="w-full flex items-center gap-2 p-4 hover:bg-secondary/50 transition-colors"
-          >
-            <span className="text-sm">{categoryIcons[category]}</span>
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex-1 text-left">
-              {categoryLabels[category]}
-            </span>
-            {expandedCategories.has(category) ? (
-              <ChevronDown className="h-3 w-3 text-muted-foreground" />
+      {/* Licensors */}
+      <div className="border-b border-border">
+        <button
+          onClick={() => toggleSection("licensors")}
+          className="w-full flex items-center gap-2 p-4 hover:bg-secondary/50 transition-colors"
+        >
+          <span className="text-sm">🏷️</span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex-1 text-left">
+            Licensors
+          </span>
+          {expandedSections.has("licensors") ? (
+            <ChevronDown className="h-3 w-3 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="h-3 w-3 text-muted-foreground" />
+          )}
+        </button>
+        {expandedSections.has("licensors") && (
+          <div className="px-4 pb-4 space-y-2">
+            {licensors.length === 0 ? (
+              <span className="text-xs text-muted-foreground">No licensors yet</span>
             ) : (
-              <ChevronRight className="h-3 w-3 text-muted-foreground" />
-            )}
-          </button>
-          {expandedCategories.has(category) && (
-            <div className="px-4 pb-4 space-y-2">
-              {catTags.map((tag) => (
-                <label key={tag.id} className="flex items-center gap-2 cursor-pointer group">
+              licensors.map((l) => (
+                <label key={l.id} className="flex items-center gap-2 cursor-pointer group">
                   <Checkbox
-                    checked={selectedTags.includes(tag.id)}
-                    onCheckedChange={() => onTagToggle(tag.id)}
+                    checked={selectedLicensorIds.includes(l.id)}
+                    onCheckedChange={() => onLicensorToggle(l.id)}
                   />
                   <span className="text-sm text-secondary-foreground group-hover:text-foreground transition-colors flex-1">
-                    {tag.name}
+                    {l.name}
                   </span>
-                  <span className="text-[10px] font-mono text-muted-foreground">{tag.count}</span>
                 </label>
-              ))}
-            </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Properties */}
+      <div className="border-b border-border">
+        <button
+          onClick={() => toggleSection("properties")}
+          className="w-full flex items-center gap-2 p-4 hover:bg-secondary/50 transition-colors"
+        >
+          <span className="text-sm">🎬</span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex-1 text-left">
+            Properties
+          </span>
+          {expandedSections.has("properties") ? (
+            <ChevronDown className="h-3 w-3 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="h-3 w-3 text-muted-foreground" />
           )}
-        </div>
-      ))}
+        </button>
+        {expandedSections.has("properties") && (
+          <div className="px-4 pb-4 space-y-2">
+            {properties.length === 0 ? (
+              <span className="text-xs text-muted-foreground">No properties yet</span>
+            ) : (
+              properties.map((p) => (
+                <label key={p.id} className="flex items-center gap-2 cursor-pointer group">
+                  <Checkbox
+                    checked={selectedPropertyIds.includes(p.id)}
+                    onCheckedChange={() => onPropertyToggle(p.id)}
+                  />
+                  <span className="text-sm text-secondary-foreground group-hover:text-foreground transition-colors flex-1">
+                    {p.name}
+                  </span>
+                </label>
+              ))
+            )}
+          </div>
+        )}
+      </div>
 
       {/* NAS Status */}
       <div className="p-4">
