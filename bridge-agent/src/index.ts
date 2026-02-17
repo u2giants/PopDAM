@@ -31,6 +31,7 @@ async function processBatch(files: ScannedFile[]) {
         width: 0,
         height: 0,
         artboards: 1,
+        modified_at: file.modifiedAt.toISOString(),
       });
 
       // 2. Generate thumbnail, upload to DO Spaces, update asset

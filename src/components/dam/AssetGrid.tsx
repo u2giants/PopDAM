@@ -6,9 +6,12 @@ interface AssetGridProps {
   assets: DbAsset[];
   onAssetClick: (asset: DbAsset) => void;
   isLoading?: boolean;
+  selectedIds: Set<string>;
+  onSelect: (asset: DbAsset, e: React.MouseEvent) => void;
+  selectionMode: boolean;
 }
 
-const AssetGrid = ({ assets, onAssetClick, isLoading }: AssetGridProps) => {
+const AssetGrid = ({ assets, onAssetClick, isLoading, selectedIds, onSelect, selectionMode }: AssetGridProps) => {
   if (isLoading) {
     return (
       <div className="flex-1 overflow-y-auto scrollbar-thin p-6">
@@ -40,7 +43,14 @@ const AssetGrid = ({ assets, onAssetClick, isLoading }: AssetGridProps) => {
     <div className="flex-1 overflow-y-auto scrollbar-thin p-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
         {assets.map((asset) => (
-          <AssetCard key={asset.id} asset={asset} onClick={onAssetClick} />
+          <AssetCard
+            key={asset.id}
+            asset={asset}
+            onClick={onAssetClick}
+            isSelected={selectedIds.has(asset.id)}
+            onSelect={onSelect}
+            selectionMode={selectionMode}
+          />
         ))}
       </div>
     </div>

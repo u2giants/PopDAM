@@ -1,10 +1,13 @@
 import { DbAsset } from "@/hooks/useAssets";
-import { FileType, Layers } from "lucide-react";
+import { FileType, Layers, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface AssetCardProps {
   asset: DbAsset;
   onClick: (asset: DbAsset) => void;
+  isSelected?: boolean;
+  onSelect?: (asset: DbAsset, e: React.MouseEvent) => void;
+  selectionMode?: boolean;
 }
 
 const formatFileSize = (bytes: number): string => {
@@ -41,12 +44,11 @@ const placeholderColors = [
 
 function getPlaceholder(asset: DbAsset): string {
   if (asset.color_placeholder) return asset.color_placeholder;
-  // Deterministic based on id
   const idx = asset.id.charCodeAt(0) % placeholderColors.length;
   return placeholderColors[idx];
 }
 
-const AssetCard = ({ asset, onClick }: AssetCardProps) => {
+const AssetCard = ({ asset, onClick, isSelected, onSelect, selectionMode }: AssetCardProps) => {
   const colorPlaceholder = getPlaceholder(asset);
   const tags = [
     ...(asset.property ? [{ label: asset.property.name, type: "property" }] : []),
@@ -54,11 +56,34 @@ const AssetCard = ({ asset, onClick }: AssetCardProps) => {
     ...(asset.product_subtype ? [{ label: asset.product_subtype.name, type: "product" }] : []),
   ];
 
+  const handleClick = (e: React.MouseEvent) => {
+    if (selectionMode || e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      onSelect?.(asset, e);
+    } else {
+      onClick(asset);
+    }
+  };
+
   return (
     <button
-      onClick={() => onClick(asset)}
-      className="group relative bg-card rounded-lg border border-border overflow-hidden hover:border-primary/50 hover:shadow-[var(--shadow-card)] transition-all duration-200 text-left w-full animate-fade-in"
+      onClick={handleClick}
+      className={`group relative bg-card rounded-lg border overflow-hidden hover:border-primary/50 hover:shadow-[var(--shadow-card)] transition-all duration-200 text-left w-full animate-fade-in ${
+        isSelected ? "border-primary ring-2 ring-primary/30" : "border-border"
+      }`}
     >
+      {/* Selection checkbox */}
+      {(selectionMode || isSelected) && (
+        <div
+          className={`absolute top-2 left-2 z-10 h-5 w-5 rounded border-2 flex items-center justify-center transition-colors ${
+            isSelected ? "bg-primary border-primary" : "bg-background/80 border-muted-foreground/40"
+          }`}
+          onClick={(e) => { e.stopPropagation(); onSelect?.(asset, e); }}
+        >
+          {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+        </div>
+      )}
+
       {/* Thumbnail Area */}
       <div className={`aspect-[4/3] bg-gradient-to-br ${colorPlaceholder} flex items-center justify-center relative overflow-hidden`}>
         {asset.thumbnail_url ? (
