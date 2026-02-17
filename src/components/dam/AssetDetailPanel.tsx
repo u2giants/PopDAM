@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { DbAsset } from "@/hooks/useAssets";
-import { X, Copy, FileType, Calendar, HardDrive, Tag, Sparkles, FolderOpen, RefreshCw, ExternalLink, Maximize2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { X, Copy, FileType, Calendar, HardDrive, Tag, Sparkles, FolderOpen, RefreshCw, ExternalLink, Maximize2, GitBranch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -37,6 +39,45 @@ const placeholderColors = [
   "from-green-900/40 to-green-800/20",
   "from-amber-900/40 to-amber-800/20",
 ];
+
+/** Path history sub-component */
+function PathHistory({ assetId }: { assetId: string }) {
+  const { data: history = [] } = useQuery({
+    queryKey: ["path-history", assetId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("asset_path_history" as any)
+        .select("*")
+        .eq("asset_id", assetId)
+        .order("detected_at", { ascending: false })
+        .limit(10);
+      if (error) throw error;
+      return data as any[];
+    },
+  });
+
+  if (history.length === 0) return null;
+
+  return (
+    <div className="p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <GitBranch className="h-3 w-3 text-muted-foreground" />
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Path History</span>
+      </div>
+      <div className="space-y-2">
+        {history.map((entry: any) => (
+          <div key={entry.id} className="text-[10px] space-y-0.5">
+            <div className="text-muted-foreground">
+              {new Date(entry.detected_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+            </div>
+            <div className="font-mono text-destructive/70 line-through truncate" title={entry.old_path}>{entry.old_path?.split("\\").pop()}</div>
+            <div className="font-mono text-success truncate" title={entry.new_path}>{entry.new_path?.split("\\").pop()}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const AssetDetailPanel = ({ asset, onClose, onTagSuccess }: AssetDetailPanelProps) => {
   const { toast } = useToast();
@@ -266,6 +307,30 @@ const AssetDetailPanel = ({ asset, onClose, onTagSuccess }: AssetDetailPanelProp
           </div>
         ))}
       </div>
+
+      <Separator />
+
+      {/* Workflow Status */}
+      {(asset as any).workflow_status && (
+        <>
+          <div className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <GitBranch className="h-3 w-3 text-muted-foreground" />
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Workflow</span>
+            </div>
+            <Badge variant="secondary" className="text-xs">
+              {(asset as any).workflow_status === "in_process" && "In Process"}
+              {(asset as any).workflow_status === "customer_adopted" && "Customer Adopted"}
+              {(asset as any).workflow_status === "licensor_approved" && "Licensor Approved"}
+              {!["in_process", "customer_adopted", "licensor_approved"].includes((asset as any).workflow_status) && (asset as any).workflow_status}
+            </Badge>
+          </div>
+          <Separator />
+        </>
+      )}
+
+      {/* Path History */}
+      <PathHistory assetId={asset.id} />
 
       <Separator />
 

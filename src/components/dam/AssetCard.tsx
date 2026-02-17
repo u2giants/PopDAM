@@ -23,6 +23,12 @@ const statusColors: Record<string, string> = {
   error: "bg-destructive/20 text-destructive",
 };
 
+const workflowLabels: Record<string, { label: string; color: string }> = {
+  in_process: { label: "In Process", color: "bg-amber-500/20 text-amber-400" },
+  customer_adopted: { label: "Adopted", color: "bg-blue-500/20 text-blue-400" },
+  licensor_approved: { label: "Approved", color: "bg-emerald-500/20 text-emerald-400" },
+};
+
 function getDisplayStatus(asset: { status: string; thumbnail_url: string | null }): { label: string; colorClass: string } {
   if (asset.status === "tagged") return { label: "tagged", colorClass: statusColors.tagged };
   if (asset.status === "error") return { label: "error", colorClass: statusColors.error };
@@ -111,6 +117,14 @@ const AssetCard = ({ asset, onClick, isSelected, onSelect, selectionMode }: Asse
           <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-background/80 backdrop-blur-sm rounded px-1.5 py-0.5">
             <Layers className="h-3 w-3 text-muted-foreground" />
             <span className="text-[10px] font-mono text-muted-foreground">{asset.artboards}</span>
+          </div>
+        )}
+
+        {(asset as any).workflow_status && workflowLabels[(asset as any).workflow_status] && (
+          <div className="absolute top-2 left-2">
+            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${workflowLabels[(asset as any).workflow_status].color}`}>
+              {workflowLabels[(asset as any).workflow_status].label}
+            </span>
           </div>
         )}
 

@@ -83,3 +83,33 @@ export async function completeJob(
     error_message: errorMessage,
   });
 }
+
+/** Report a file movement (hash found at new path) */
+export async function moveAsset(oldPath: string, newPath: string) {
+  return post("move-asset", { old_path: oldPath, new_path: newPath });
+}
+
+/** Queue a render job for the Windows agent */
+export async function queueRender(assetId: string, reason: string) {
+  return post("queue-render", { asset_id: assetId, reason });
+}
+
+/** Claim render jobs (used by Windows agent) */
+export async function claimRenderJobs(agentName: string, batchSize = 5) {
+  return post("claim-render", { agent_name: agentName, batch_size: batchSize });
+}
+
+/** Complete a render job (used by Windows agent) */
+export async function completeRender(
+  jobId: string,
+  status: "completed" | "failed",
+  thumbnailUrl?: string,
+  errorMessage?: string
+) {
+  return post("complete-render", {
+    job_id: jobId,
+    status,
+    thumbnail_url: thumbnailUrl,
+    error_message: errorMessage,
+  });
+}

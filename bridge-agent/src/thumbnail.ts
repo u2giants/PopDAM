@@ -15,6 +15,16 @@ export interface ThumbnailResult {
   height: number;
 }
 
+export interface ThumbnailError {
+  success: false;
+  reason: string; // e.g. "no_pdf_compat"
+  message: string;
+}
+
+export type ThumbnailOutcome =
+  | ({ success: true } & ThumbnailResult)
+  | ThumbnailError;
+
 /** Ensure thumbnail directory exists */
 async function ensureDir() {
   await fs.mkdir(THUMB_DIR, { recursive: true });
@@ -22,17 +32,14 @@ async function ensureDir() {
 
 /**
  * Extract thumbnail from a PSD file.
- * PSD files contain an embedded composite image — we use sharp which
- * can read PSD format directly for the flattened composite.
  */
 async function thumbnailFromPsd(filePath: string, outputPath: string): Promise<ThumbnailResult> {
   const tempPng = outputPath.replace(/\.jpg$/, ".tmp.png");
 
-  // Attempt 1: sharp (works for standard PSD with flattened composite)
+  // Attempt 1: sharp
   try {
     const image = sharp(filePath, { pages: 0 });
     const metadata = await image.metadata();
-
     await image.resize({
       width: config.thumbnailMaxSize,
       height: config.thumbnailMaxSize,
@@ -40,36 +47,22 @@ async function thumbnailFromPsd(filePath: string, outputPath: string): Promise<T
       withoutEnlargement: true,
     }).jpeg({ quality: config.thumbnailQuality }).toFile(outputPath);
 
-    return {
-      thumbnailPath: outputPath,
-      width: metadata.width || 0,
-      height: metadata.height || 0,
-    };
-  } catch {
-    // sharp can't read this PSD, fall through
-  }
+    return { thumbnailPath: outputPath, width: metadata.width || 0, height: metadata.height || 0 };
+  } catch { /* fall through */ }
 
-  // Attempt 2: ImageMagick convert (handles PSB, complex PSDs)
+  // Attempt 2: ImageMagick
   try {
-    // [0] selects the flattened composite / first layer
     await execFileAsync("convert", [
       `${filePath}[0]`,
       "-resize", `${config.thumbnailMaxSize}x${config.thumbnailMaxSize}>`,
       "-quality", config.thumbnailQuality.toString(),
       outputPath,
     ]);
-
     const metadata = await sharp(outputPath).metadata();
-    return {
-      thumbnailPath: outputPath,
-      width: metadata.width || 0,
-      height: metadata.height || 0,
-    };
-  } catch {
-    // ImageMagick failed, try Ghostscript
-  }
+    return { thumbnailPath: outputPath, width: metadata.width || 0, height: metadata.height || 0 };
+  } catch { /* fall through */ }
 
-  // Attempt 3: Ghostscript (PSD as PostScript-ish)
+  // Attempt 3: Ghostscript
   try {
     await execFileAsync("gs", [
       "-dNOPAUSE", "-dBATCH", "-dSAFER",
@@ -78,136 +71,94 @@ async function thumbnailFromPsd(filePath: string, outputPath: string): Promise<T
       `-sOutputFile=${tempPng}`,
       filePath,
     ]);
-
     const metadata = await sharp(tempPng).metadata();
     await sharp(tempPng)
       .resize({ width: config.thumbnailMaxSize, height: config.thumbnailMaxSize, fit: "inside", withoutEnlargement: true })
       .jpeg({ quality: config.thumbnailQuality })
       .toFile(outputPath);
-
     await fs.unlink(tempPng).catch(() => {});
-    return {
-      thumbnailPath: outputPath,
-      width: metadata.width || 0,
-      height: metadata.height || 0,
-    };
+    return { thumbnailPath: outputPath, width: metadata.width || 0, height: metadata.height || 0 };
   } catch (err) {
     throw new Error(`All PSD thumbnail methods failed for ${filePath}: ${err}`);
   }
 }
 
 /**
- * Extract thumbnail from an AI file.
- * Strategy:
- *   1. Try sharp directly (works if AI file has PDF compatibility enabled)
- *   2. Fall back to Ghostscript (renders the PDF/PostScript content)
- *   3. Fall back to Inkscape (handles pure SVG-based AI files)
+ * Extract thumbnail from an AI file. Returns a ThumbnailOutcome
+ * so callers can distinguish between a hard failure (no_pdf_compat)
+ * and a successful extraction.
  */
-async function thumbnailFromAi(filePath: string, outputPath: string): Promise<ThumbnailResult> {
+async function thumbnailFromAi(filePath: string, outputPath: string): Promise<ThumbnailOutcome> {
   const tempPng = outputPath.replace(/\.jpg$/, ".tmp.png");
 
   // Attempt 1: Direct sharp read (PDF-compatible AI)
   try {
     const image = sharp(filePath, { density: 150 });
     const metadata = await image.metadata();
-    await image
-      .resize({
-        width: config.thumbnailMaxSize,
-        height: config.thumbnailMaxSize,
-        fit: "inside",
-        withoutEnlargement: true,
-      })
-      .jpeg({ quality: config.thumbnailQuality })
-      .toFile(outputPath);
-
-    return {
-      thumbnailPath: outputPath,
-      width: metadata.width || 0,
-      height: metadata.height || 0,
-    };
-  } catch {
-    // PDF compat likely disabled, fall through
-  }
+    await image.resize({
+      width: config.thumbnailMaxSize, height: config.thumbnailMaxSize,
+      fit: "inside", withoutEnlargement: true,
+    }).jpeg({ quality: config.thumbnailQuality }).toFile(outputPath);
+    return { success: true, thumbnailPath: outputPath, width: metadata.width || 0, height: metadata.height || 0 };
+  } catch { /* fall through */ }
 
   // Attempt 2: Ghostscript
   try {
     await execFileAsync("gs", [
-      "-dNOPAUSE",
-      "-dBATCH",
-      "-dSAFER",
-      "-sDEVICE=png16m",
-      `-r150`,
-      `-dFirstPage=1`,
-      `-dLastPage=1`,
+      "-dNOPAUSE", "-dBATCH", "-dSAFER",
+      "-sDEVICE=png16m", `-r150`,
+      `-dFirstPage=1`, `-dLastPage=1`,
       `-sOutputFile=${tempPng}`,
       filePath,
     ]);
-
     const metadata = await sharp(tempPng).metadata();
-    await sharp(tempPng)
-      .resize({
-        width: config.thumbnailMaxSize,
-        height: config.thumbnailMaxSize,
-        fit: "inside",
-        withoutEnlargement: true,
-      })
-      .jpeg({ quality: config.thumbnailQuality })
-      .toFile(outputPath);
-
+    await sharp(tempPng).resize({
+      width: config.thumbnailMaxSize, height: config.thumbnailMaxSize,
+      fit: "inside", withoutEnlargement: true,
+    }).jpeg({ quality: config.thumbnailQuality }).toFile(outputPath);
     await fs.unlink(tempPng).catch(() => {});
-    return {
-      thumbnailPath: outputPath,
-      width: metadata.width || 0,
-      height: metadata.height || 0,
-    };
-  } catch {
-    // Ghostscript failed, try Inkscape
-  }
+    return { success: true, thumbnailPath: outputPath, width: metadata.width || 0, height: metadata.height || 0 };
+  } catch { /* fall through */ }
 
   // Attempt 3: Inkscape
   try {
     await execFileAsync("inkscape", [
-      filePath,
-      "--export-type=png",
-      `--export-filename=${tempPng}`,
-      "--export-dpi=150",
+      filePath, "--export-type=png",
+      `--export-filename=${tempPng}`, "--export-dpi=150",
     ]);
-
     const metadata = await sharp(tempPng).metadata();
-    await sharp(tempPng)
-      .resize({
-        width: config.thumbnailMaxSize,
-        height: config.thumbnailMaxSize,
-        fit: "inside",
-        withoutEnlargement: true,
-      })
-      .jpeg({ quality: config.thumbnailQuality })
-      .toFile(outputPath);
-
+    await sharp(tempPng).resize({
+      width: config.thumbnailMaxSize, height: config.thumbnailMaxSize,
+      fit: "inside", withoutEnlargement: true,
+    }).jpeg({ quality: config.thumbnailQuality }).toFile(outputPath);
     await fs.unlink(tempPng).catch(() => {});
-    return {
-      thumbnailPath: outputPath,
-      width: metadata.width || 0,
-      height: metadata.height || 0,
-    };
+    return { success: true, thumbnailPath: outputPath, width: metadata.width || 0, height: metadata.height || 0 };
   } catch (err) {
-    throw new Error(`All thumbnail extraction methods failed for ${filePath}: ${err}`);
+    // All methods failed — this AI file likely has no PDF compatibility
+    return {
+      success: false,
+      reason: "no_pdf_compat",
+      message: `AI file requires Adobe Illustrator for rendering (no PDF compatibility): ${err}`,
+    };
   }
 }
 
 /**
- * Generate a thumbnail for a file. Returns metadata + local path to the JPEG.
+ * Generate a thumbnail for a file.
+ * For PSD: throws on failure (all PSD methods are reliable).
+ * For AI: returns a ThumbnailOutcome so callers can handle no_pdf_compat gracefully.
  */
 export async function generateThumbnail(
   filePath: string,
   fileType: "psd" | "ai",
   assetId: string
-): Promise<ThumbnailResult> {
+): Promise<ThumbnailOutcome> {
   await ensureDir();
   const outputPath = path.join(THUMB_DIR, `${assetId}.jpg`);
 
   if (fileType === "psd") {
-    return thumbnailFromPsd(filePath, outputPath);
+    const result = await thumbnailFromPsd(filePath, outputPath);
+    return { success: true, ...result };
   } else {
     return thumbnailFromAi(filePath, outputPath);
   }

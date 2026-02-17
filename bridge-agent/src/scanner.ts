@@ -2,6 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import { config } from "./config";
+import { moveAsset } from "./api";
 
 export interface ScannedFile {
   filename: string;
@@ -14,26 +15,46 @@ export interface ScannedFile {
   sha256: string;
 }
 
+interface KnownFile {
+  hash: string;
+  path: string;
+}
+
 interface ScanState {
   lastScanTime: string;
-  knownHashes: string[];  // SHA-256 of already-ingested files
+  knownHashes?: string[];  // Legacy format (auto-migrated)
+  knownFiles?: KnownFile[];
 }
 
 const STATE_FILE = path.join(config.dataDir, "scan-state.json");
 const minDate = new Date(config.scanMinDate);
 
-/** Load persisted scan state */
-async function loadState(): Promise<ScanState> {
+/** Load persisted scan state, auto-migrating legacy format */
+async function loadState(): Promise<{ lastScanTime: string; knownFiles: KnownFile[] }> {
   try {
     const raw = await fs.readFile(STATE_FILE, "utf-8");
-    return JSON.parse(raw);
+    const state: ScanState = JSON.parse(raw);
+
+    // Migrate legacy knownHashes[] → knownFiles[]
+    if (state.knownHashes && !state.knownFiles) {
+      console.log(`[Scanner] Migrating ${state.knownHashes.length} legacy hashes to knownFiles format`);
+      return {
+        lastScanTime: state.lastScanTime,
+        knownFiles: state.knownHashes.map((hash) => ({ hash, path: "" })),
+      };
+    }
+
+    return {
+      lastScanTime: state.lastScanTime,
+      knownFiles: state.knownFiles || [],
+    };
   } catch {
-    return { lastScanTime: minDate.toISOString(), knownHashes: [] };
+    return { lastScanTime: minDate.toISOString(), knownFiles: [] };
   }
 }
 
 /** Save scan state */
-async function saveState(state: ScanState): Promise<void> {
+async function saveState(state: { lastScanTime: string; knownFiles: KnownFile[] }): Promise<void> {
   await fs.mkdir(path.dirname(STATE_FILE), { recursive: true });
   await fs.writeFile(STATE_FILE, JSON.stringify(state, null, 2));
 }
@@ -89,15 +110,22 @@ async function* walkDir(dir: string): AsyncGenerator<string> {
 /** Run an incremental scan across all configured roots */
 export async function scan(): Promise<ScannedFile[]> {
   const state = await loadState();
-  const knownSet = new Set(state.knownHashes);
+
+  // Build hash→path map for movement detection
+  const hashToPath = new Map<string, string>();
+  for (const kf of state.knownFiles) {
+    hashToPath.set(kf.hash, kf.path);
+  }
+
   const sinceDate = new Date(state.lastScanTime);
   const newFiles: ScannedFile[] = [];
   let scannedCount = 0;
+  let movedCount = 0;
   const scanStart = new Date();
 
   console.log(`[Scanner] Starting incremental scan since ${sinceDate.toISOString()}`);
   console.log(`[Scanner] Roots: ${config.scanRoots.join(", ")}`);
-  console.log(`[Scanner] Known files: ${knownSet.size}`);
+  console.log(`[Scanner] Known files: ${hashToPath.size}`);
 
   for (const root of config.scanRoots) {
     for await (const filePath of walkDir(root)) {
@@ -113,18 +141,34 @@ export async function scan(): Promise<ScannedFile[]> {
         if (stat.mtime < minDate) continue;
 
         // Skip files not modified since last scan (unless first run)
-        if (stat.mtime <= sinceDate && knownSet.size > 0) continue;
+        if (stat.mtime <= sinceDate && hashToPath.size > 0) continue;
 
         // Compute quick hash for dedup
         const hash = await quickHash(filePath);
-        if (knownSet.has(hash)) continue;
+        const uncPath = toUncPath(filePath);
+
+        if (hashToPath.has(hash)) {
+          const knownPath = hashToPath.get(hash)!;
+          // If we have a recorded path and it differs, this file moved
+          if (knownPath && knownPath !== uncPath) {
+            try {
+              console.log(`[Scanner] File moved: ${path.basename(knownPath)} → new folder`);
+              await moveAsset(knownPath, uncPath);
+              hashToPath.set(hash, uncPath); // Update our local map
+              movedCount++;
+            } catch (moveErr: any) {
+              console.warn(`[Scanner] Move detection failed: ${moveErr.message}`);
+            }
+          }
+          continue; // Already known (same or moved), don't re-ingest
+        }
 
         const ext = path.extname(filePath).toLowerCase().replace(".", "") as "psd" | "ai";
 
         newFiles.push({
           filename: path.basename(filePath),
           filePath,
-          uncPath: toUncPath(filePath),
+          uncPath,
           fileType: ext,
           fileSize: stat.size,
           modifiedAt: stat.mtime,
@@ -132,19 +176,20 @@ export async function scan(): Promise<ScannedFile[]> {
           sha256: hash,
         });
 
-        knownSet.add(hash);
+        hashToPath.set(hash, uncPath);
       } catch {
         // Skip individual file errors
       }
     }
   }
 
-  // Persist updated state
-  await saveState({
-    lastScanTime: scanStart.toISOString(),
-    knownHashes: Array.from(knownSet),
-  });
+  // Persist updated state (new format)
+  const knownFiles: KnownFile[] = [];
+  for (const [hash, p] of hashToPath) {
+    knownFiles.push({ hash, path: p });
+  }
+  await saveState({ lastScanTime: scanStart.toISOString(), knownFiles });
 
-  console.log(`[Scanner] Complete. Scanned ${scannedCount} files, found ${newFiles.length} new.`);
+  console.log(`[Scanner] Complete. Scanned ${scannedCount} files, found ${newFiles.length} new, ${movedCount} moved.`);
   return newFiles;
 }

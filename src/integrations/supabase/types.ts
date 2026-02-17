@@ -74,6 +74,38 @@ export type Database = {
           },
         ]
       }
+      asset_path_history: {
+        Row: {
+          asset_id: string
+          detected_at: string
+          id: string
+          new_path: string
+          old_path: string
+        }
+        Insert: {
+          asset_id: string
+          detected_at?: string
+          id?: string
+          new_path: string
+          old_path: string
+        }
+        Update: {
+          asset_id?: string
+          detected_at?: string
+          id?: string
+          new_path?: string
+          old_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_path_history_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       assets: {
         Row: {
           ai_description: string | null
@@ -102,8 +134,10 @@ export type Database = {
           scene_description: string | null
           status: Database["public"]["Enums"]["asset_status"]
           tags: string[] | null
+          thumbnail_error: string | null
           thumbnail_url: string | null
           width: number
+          workflow_status: string | null
         }
         Insert: {
           ai_description?: string | null
@@ -132,8 +166,10 @@ export type Database = {
           scene_description?: string | null
           status?: Database["public"]["Enums"]["asset_status"]
           tags?: string[] | null
+          thumbnail_error?: string | null
           thumbnail_url?: string | null
           width?: number
+          workflow_status?: string | null
         }
         Update: {
           ai_description?: string | null
@@ -162,8 +198,10 @@ export type Database = {
           scene_description?: string | null
           status?: Database["public"]["Enums"]["asset_status"]
           tags?: string[] | null
+          thumbnail_error?: string | null
           thumbnail_url?: string | null
           width?: number
+          workflow_status?: string | null
         }
         Relationships: [
           {
@@ -451,6 +489,47 @@ export type Database = {
             columns: ["licensor_id"]
             isOneToOne: false
             referencedRelation: "licensors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      render_queue: {
+        Row: {
+          asset_id: string
+          claimed_at: string | null
+          claimed_by: string | null
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          status: string
+        }
+        Insert: {
+          asset_id: string
+          claimed_at?: string | null
+          claimed_by?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          status?: string
+        }
+        Update: {
+          asset_id?: string
+          claimed_at?: string | null
+          claimed_by?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "render_queue_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
             referencedColumns: ["id"]
           },
         ]
