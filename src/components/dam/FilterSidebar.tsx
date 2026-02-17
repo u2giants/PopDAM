@@ -12,6 +12,8 @@ interface FilterSidebarProps {
   onFileTypeToggle: (type: string) => void;
   selectedStatuses: string[];
   onStatusToggle: (status: string) => void;
+  selectedImageTypes: string[];
+  onImageTypeToggle: (type: string) => void;
   selectedLicensorIds: string[];
   onLicensorToggle: (id: string) => void;
   selectedPropertyIds: string[];
@@ -25,6 +27,8 @@ const FilterSidebar = ({
   onFileTypeToggle,
   selectedStatuses,
   onStatusToggle,
+  selectedImageTypes,
+  onImageTypeToggle,
   selectedLicensorIds,
   onLicensorToggle,
   selectedPropertyIds,
@@ -50,7 +54,7 @@ const FilterSidebar = ({
   };
 
   const totalSelected =
-    selectedFileTypes.length + selectedStatuses.length + selectedLicensorIds.length + selectedPropertyIds.length;
+    selectedFileTypes.length + selectedStatuses.length + selectedImageTypes.length + selectedLicensorIds.length + selectedPropertyIds.length;
 
   return (
     <div className="w-64 border-r border-border bg-surface-overlay h-full overflow-y-auto scrollbar-thin animate-slide-in-right">
@@ -115,6 +119,33 @@ const FilterSidebar = ({
                   {statusCounts[s.value as keyof typeof statusCounts] ?? 0}
                 </span>
               )}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Image Type */}
+      <div className="p-4 border-b border-border">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-sm">📷</span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Image Type</span>
+        </div>
+        <div className="space-y-2">
+          {[
+            { value: "amazon image", label: "Amazon Image" },
+            { value: "professional photography", label: "Photography" },
+            { value: "tech pack", label: "Tech Pack" },
+            { value: "design art", label: "Design Art" },
+            { value: "lifestyle", label: "Lifestyle" },
+          ].map((t) => (
+            <label key={t.value} className="flex items-center gap-2 cursor-pointer group">
+              <Checkbox
+                checked={selectedImageTypes.includes(t.value)}
+                onCheckedChange={() => onImageTypeToggle(t.value)}
+              />
+              <span className="text-sm text-secondary-foreground group-hover:text-foreground transition-colors">
+                {t.label}
+              </span>
             </label>
           ))}
         </div>
