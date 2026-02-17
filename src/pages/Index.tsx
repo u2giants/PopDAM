@@ -24,7 +24,13 @@ const Index = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [filtersOpen, setFiltersOpen] = useState(true);
-  const [selectedAsset, setSelectedAsset] = useState<DbAsset | null>(null);
+  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
+
+  // Keep selectedAsset in sync with fresh query data so detail panel updates after AI tagging
+  const selectedAsset = useMemo(() => {
+    if (!selectedAssetId) return null;
+    return assets.find((a) => a.id === selectedAssetId) || null;
+  }, [selectedAssetId, assets]);
   const [selectedFileTypes, setSelectedFileTypes] = useState<string[]>([]);
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [selectedLicensorIds, setSelectedLicensorIds] = useState<string[]>([]);
@@ -87,9 +93,7 @@ const Index = () => {
   const handleTagSuccess = useCallback((taggedAssetIds: string[]) => {
     setSelectedStatuses(["tagged"]);
     if (taggedAssetIds.length === 1) {
-      // Find the asset and select it in the detail panel
-      const taggedAsset = assets.find((a) => a.id === taggedAssetIds[0]);
-      if (taggedAsset) setSelectedAsset(taggedAsset);
+      setSelectedAssetId(taggedAssetIds[0]);
     }
   }, [assets]);
 
@@ -123,7 +127,7 @@ const Index = () => {
         <div className="flex-1 flex flex-col overflow-hidden">
           <AssetGrid
             assets={filteredAssets}
-            onAssetClick={setSelectedAsset}
+            onAssetClick={(a) => setSelectedAssetId(a.id)}
             isLoading={isLoading}
             selectedIds={selectedIds}
             onSelect={handleSelect}
@@ -136,7 +140,7 @@ const Index = () => {
             onTagSuccess={handleTagSuccess}
           />
         </div>
-        <AssetDetailPanel asset={selectedAsset} onClose={() => setSelectedAsset(null)} onTagSuccess={handleTagSuccess} />
+        <AssetDetailPanel asset={selectedAsset} onClose={() => setSelectedAssetId(null)} onTagSuccess={handleTagSuccess} />
       </div>
     </div>
   );

@@ -123,6 +123,13 @@ Deno.serve(async (req) => {
         // Add style number to tags if found
         const styleNum = updates.design_ref as string | null;
         if (styleNum) tagSet.add(`style: ${styleNum.toLowerCase()}`);
+        // Add image category as a tag
+        if (parsed.image_category) {
+          const cat = parsed.image_category.trim().toLowerCase();
+          if (cat !== "null") {
+            tagSet.add(cat.replace(/_/g, " "));
+          }
+        }
 
         // Resolve property
         if (parsed.property_name) {
@@ -202,6 +209,13 @@ Your job is to analyze design asset images and produce:
 2. SCENE DESCRIPTION — one sentence describing what is happening in the artwork itself (the characters' poses, the composition, the pattern type). NOT a description of the photograph or the physical product.
 3. TAXONOMY MATCHING — map to the company's internal taxonomy using exact names provided.
 4. TECH PACK EXTRACTION — if the image shows a tech pack or specification sheet, extract any visible text information such as: designer name/initials, style guide reference, product dimensions/sizes, color callouts, material specs, and any reference numbers. Include these as structured fields.
+5. IMAGE CLASSIFICATION — classify the image into one of these categories:
+   - "amazon_image" — a person holding or modeling the product (often holding it up in front of their face/body), OR a product shot against a plain white/clean background intended for e-commerce listing
+   - "lifestyle" — the product photographed in a real-life setting (bedroom, living room, etc.) showing how it looks in use
+   - "professional_photography" — studio product photography with controlled lighting, styled but not in a real room setting
+   - "tech_pack" — a technical specification sheet, flat sketch, or construction document
+   - "design_art" — the raw artwork/design itself (character art, pattern, composition) not on a physical product
+   If unsure, use null.
 
 CHARACTER IDENTIFICATION — CRITICAL RULES:
 - You MUST identify each character INDIVIDUALLY based on their VISUAL APPEARANCE in the image, not assumptions.
@@ -270,6 +284,7 @@ Respond with JSON in this exact format:
   "character_names": ["exact names from available characters"],
   "product_subtype_name": "exact name from available subtypes or null",
   "asset_type": "art_piece or product",
+  "image_category": "amazon_image | lifestyle | professional_photography | tech_pack | design_art | null",
   "art_source": "freelancer or straight_style_guide or style_guide_composition or null",
   "big_theme": "theme category or null",
   "little_theme": "specific theme or null",
@@ -285,6 +300,12 @@ RULES:
 - scene_description: Describe ONLY what is depicted in the artwork/design — character poses, pattern layout, composition. NOT the physical product or photograph.
 - Only use property_name/character_names/product_subtype_name that EXACTLY match the available options. If unsure, use null.
 - CHARACTER IDENTIFICATION IS CRITICAL: Identify each character by their VISUAL features (costume colors, accessories, hair, symbols). Do NOT assume a character is present — confirm by sight. If you cannot visually confirm a character's identity, omit them from character_names entirely.
+- image_category: Classify the image:
+  * "amazon_image" = person holding/modeling product OR product on plain white background for e-commerce
+  * "lifestyle" = product in a real room/setting showing real-life use
+  * "professional_photography" = styled studio shot with controlled lighting
+  * "tech_pack" = specification sheet, flat sketch, construction document
+  * "design_art" = raw artwork, character art, pattern design (not on a product)
 - If the image shows a tech pack / spec sheet, extract designer, style_guide_ref, product_size from visible text. Also add "tech pack" to tags.
 - designer: look for text like "Designer:", "Created by:", initials, or signature text on the image.
 - style_guide_ref: look for "Style Guide:", "SG#", or reference codes.
