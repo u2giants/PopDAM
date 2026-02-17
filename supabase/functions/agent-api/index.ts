@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
 
     // --- SUBMIT ASSET (ingest a new file) ---
     if (action === "ingest" && req.method === "POST") {
-      const { filename, file_path, file_type, file_size, width, height, artboards, color_placeholder, modified_at } = await req.json();
+      const { filename, file_path, file_type, file_size, width, height, artboards, color_placeholder, modified_at, file_created_at } = await req.json();
       if (!filename || !file_path || !file_type) {
         return json({ error: "filename, file_path, and file_type required" }, 400);
       }
@@ -123,6 +123,7 @@ Deno.serve(async (req) => {
           artboards: artboards || 1,
           color_placeholder: color_placeholder || null,
           modified_at: modified_at || new Date().toISOString(),
+          file_created_at: file_created_at || null,
           status: "pending",
         })
         .select()

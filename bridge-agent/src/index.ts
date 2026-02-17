@@ -33,6 +33,7 @@ async function processBatch(files: ScannedFile[]) {
         height: 0,
         artboards: 1,
         modified_at: file.modifiedAt.toISOString(),
+        file_created_at: file.createdAt.toISOString(),
       });
 
       // 2. Generate thumbnail, upload to DO Spaces, update asset
@@ -186,8 +187,9 @@ async function backfillDates() {
 
       const stat = await fs.stat(localPath);
       const modifiedAt = stat.mtime.toISOString();
+      const createdAt = stat.birthtime.toISOString();
 
-      await updateAsset(asset.id, { modified_at: modifiedAt });
+      await updateAsset(asset.id, { modified_at: modifiedAt, file_created_at: createdAt });
       updated++;
 
       if (updated % 100 === 0) {
