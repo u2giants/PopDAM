@@ -1,4 +1,5 @@
 import path from "path";
+import fs from "fs/promises";
 import { config } from "./config";
 import { registerAgent, heartbeat, ingestAsset, updateAsset } from "./api";
 import { scan, ScannedFile } from "./scanner";
@@ -136,8 +137,78 @@ async function reprocess() {
   console.log(`[Reprocess] Done. Success: ${success}, Failed: ${failed}, Skipped: ${skipped}`);
 }
 
+/** Backfill real file modification dates for all assets */
+async function backfillDates() {
+  console.log("[BackfillDates] Fetching all assets...");
+
+  const baseUrl = `${config.supabaseUrl}/rest/v1/assets`;
+  const batchSize = 1000;
+  let offset = 0;
+  let allAssets: { id: string; file_path: string }[] = [];
+
+  while (true) {
+    const params = new URLSearchParams({
+      select: "id,file_path",
+      limit: String(batchSize),
+      offset: String(offset),
+    });
+
+    const res = await fetch(`${baseUrl}?${params}`, {
+      headers: {
+        apikey: config.supabaseAnonKey,
+        Authorization: `Bearer ${config.supabaseAnonKey}`,
+      },
+    });
+
+    if (!res.ok) throw new Error(`Failed to fetch assets: ${res.status}`);
+    const page = (await res.json()) as { id: string; file_path: string }[];
+    allAssets = allAssets.concat(page);
+    if (page.length < batchSize) break;
+    offset += batchSize;
+  }
+
+  console.log(`[BackfillDates] Found ${allAssets.length} assets to check`);
+
+  let updated = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (let i = 0; i < allAssets.length; i++) {
+    const asset = allAssets[i];
+    try {
+      const normalized = asset.file_path.replace(/\\/g, "/");
+      if (!normalized.includes("edgesynology2/mac")) {
+        skipped++;
+        continue;
+      }
+
+      const localPath = normalized.replace(/^\/\/edgesynology2\/mac/, "/mnt/nas/mac");
+
+      const stat = await fs.stat(localPath);
+      const modifiedAt = stat.mtime.toISOString();
+
+      await updateAsset(asset.id, { modified_at: modifiedAt });
+      updated++;
+
+      if (updated % 100 === 0) {
+        console.log(`[BackfillDates] Progress: ${updated} updated, ${skipped} skipped, ${failed} failed (${i + 1}/${allAssets.length})`);
+      }
+    } catch {
+      failed++;
+    }
+  }
+
+  console.log(`[BackfillDates] Done. Updated: ${updated}, Skipped: ${skipped}, Failed: ${failed}`);
+}
+
 /** Main loop */
 async function main() {
+  // Check for backfill-dates mode
+  if (process.argv.includes("--backfill-dates")) {
+    await backfillDates();
+    process.exit(0);
+  }
+
   // Check for reprocess mode
   if (process.argv.includes("--reprocess")) {
     await reprocess();
