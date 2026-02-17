@@ -18,6 +18,8 @@ interface FilterSidebarProps {
   onLicensorToggle: (id: string) => void;
   selectedPropertyIds: string[];
   onPropertyToggle: (id: string) => void;
+  selectedWorkflowStatuses?: string[];
+  onWorkflowStatusToggle?: (status: string) => void;
   onClearAll: () => void;
   isOpen: boolean;
 }
@@ -33,6 +35,8 @@ const FilterSidebar = ({
   onLicensorToggle,
   selectedPropertyIds,
   onPropertyToggle,
+  selectedWorkflowStatuses = [],
+  onWorkflowStatusToggle,
   onClearAll,
   isOpen,
 }: FilterSidebarProps) => {
@@ -54,7 +58,7 @@ const FilterSidebar = ({
   };
 
   const totalSelected =
-    selectedFileTypes.length + selectedStatuses.length + selectedImageTypes.length + selectedLicensorIds.length + selectedPropertyIds.length;
+    selectedFileTypes.length + selectedStatuses.length + selectedImageTypes.length + selectedLicensorIds.length + selectedPropertyIds.length + selectedWorkflowStatuses.length;
 
   return (
     <div className="w-64 border-r border-border bg-surface-overlay h-full overflow-y-auto scrollbar-thin animate-slide-in-right">
@@ -123,6 +127,34 @@ const FilterSidebar = ({
           ))}
         </div>
       </div>
+
+      {/* Workflow Status */}
+      {onWorkflowStatusToggle && (
+        <div className="p-4 border-b border-border">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-sm">📂</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Workflow</span>
+          </div>
+          <div className="space-y-2">
+            {[
+              { value: "in_process", label: "In Process", color: "bg-amber-500" },
+              { value: "customer_adopted", label: "Customer Adopted", color: "bg-blue-500" },
+              { value: "licensor_approved", label: "Licensor Approved", color: "bg-emerald-500" },
+            ].map((s) => (
+              <label key={s.value} className="flex items-center gap-2 cursor-pointer group">
+                <Checkbox
+                  checked={selectedWorkflowStatuses.includes(s.value)}
+                  onCheckedChange={() => onWorkflowStatusToggle(s.value)}
+                />
+                <span className={`w-2 h-2 rounded-full ${s.color}`} />
+                <span className="text-sm text-secondary-foreground group-hover:text-foreground transition-colors">
+                  {s.label}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Image Type */}
       <div className="p-4 border-b border-border">

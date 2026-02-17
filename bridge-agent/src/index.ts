@@ -1,7 +1,7 @@
 import path from "path";
 import fs from "fs/promises";
 import { config } from "./config";
-import { registerAgent, heartbeat, ingestAsset, updateAsset } from "./api";
+import { registerAgent, heartbeat, ingestAsset, updateAsset, queueRender } from "./api";
 import { scan, ScannedFile } from "./scanner";
 import { generateThumbnail, readThumbnailBase64 } from "./thumbnail";
 import { uploadToSpaces } from "./s3";
@@ -38,16 +38,29 @@ async function processBatch(files: ScannedFile[]) {
 
       // 2. Generate thumbnail, upload to DO Spaces, update asset
       try {
-        const thumb = await generateThumbnail(file.filePath, file.fileType, asset.id);
-        const thumbnailUrl = await uploadThumbnail(thumb.thumbnailPath, asset.id);
+        const result = await generateThumbnail(file.filePath, file.fileType, asset.id);
 
-        await updateAsset(asset.id, {
-          thumbnail_url: thumbnailUrl,
-          width: thumb.width,
-          height: thumb.height,
-          status: "processing",
-        });
-        console.log(`[Agent] Thumbnail uploaded: ${thumb.width}x${thumb.height} → ${thumbnailUrl}`);
+        if (result.success) {
+          const thumbnailUrl = await uploadThumbnail(result.thumbnailPath, asset.id);
+          await updateAsset(asset.id, {
+            thumbnail_url: thumbnailUrl,
+            width: result.width,
+            height: result.height,
+            status: "processing",
+          });
+          console.log(`[Agent] Thumbnail uploaded: ${result.width}x${result.height} → ${thumbnailUrl}`);
+        } else {
+          // Thumbnail generation failed (e.g. AI file without PDF compat)
+          console.warn(`[Agent] Thumbnail failed (${result.reason}): ${file.filename}`);
+          await updateAsset(asset.id, { thumbnail_error: result.reason });
+          // Queue for Windows render agent
+          try {
+            await queueRender(asset.id, result.reason);
+            console.log(`[Agent] Queued render job for ${file.filename}`);
+          } catch (queueErr: any) {
+            console.warn(`[Agent] Failed to queue render: ${queueErr.message}`);
+          }
+        }
       } catch (thumbErr: any) {
         console.warn(`[Agent] Thumbnail failed for ${file.filename}: ${thumbErr.message}`);
       }
@@ -66,7 +79,6 @@ async function reprocess() {
   let offset = 0;
   let allAssets: { id: string; file_path: string; file_type: "psd" | "ai" }[] = [];
 
-  // Paginate to get ALL assets without thumbnails
   while (true) {
     const params = new URLSearchParams({
       select: "id,file_path,file_type",
@@ -82,13 +94,9 @@ async function reprocess() {
       },
     });
 
-    if (!res.ok) {
-      throw new Error(`Failed to fetch assets: ${res.status}`);
-    }
-
+    if (!res.ok) throw new Error(`Failed to fetch assets: ${res.status}`);
     const page = (await res.json()) as { id: string; file_path: string; file_type: "psd" | "ai" }[];
     allAssets = allAssets.concat(page);
-
     if (page.length < batchSize) break;
     offset += batchSize;
   }
@@ -97,45 +105,99 @@ async function reprocess() {
 
   let success = 0;
   let failed = 0;
-
   let skipped = 0;
+  let queued = 0;
 
   for (let i = 0; i < allAssets.length; i++) {
     const asset = allAssets[i];
     try {
-      // Convert UNC path (backslashes) to local mount path (forward slashes)
       const normalized = asset.file_path.replace(/\\/g, "/");
-
-      // Only process paths from edgesynology2 — skip unknown/legacy UNC prefixes
       if (!normalized.includes("edgesynology2/mac")) {
         skipped++;
         continue;
       }
 
       const localPath = normalized.replace(/^\/\/edgesynology2\/mac/, "/mnt/nas/mac");
-
-      // Log every attempt so it doesn't appear to hang
       console.log(`[Reprocess] [${i + 1}/${allAssets.length}] Processing: ${asset.file_type.toUpperCase()} ${path.basename(asset.file_path)}`);
 
-      const thumb = await generateThumbnail(localPath, asset.file_type, asset.id);
-      const thumbnailUrl = await uploadThumbnail(thumb.thumbnailPath, asset.id);
+      const result = await generateThumbnail(localPath, asset.file_type, asset.id);
 
-      await updateAsset(asset.id, {
-        thumbnail_url: thumbnailUrl,
-        width: thumb.width,
-        height: thumb.height,
-        status: "processing",
-      });
-
-      success++;
-      console.log(`[Reprocess] ✓ ${thumb.width}x${thumb.height} → ${thumbnailUrl}`);
+      if (result.success) {
+        const thumbnailUrl = await uploadThumbnail(result.thumbnailPath, asset.id);
+        await updateAsset(asset.id, {
+          thumbnail_url: thumbnailUrl,
+          width: result.width,
+          height: result.height,
+          status: "processing",
+        });
+        success++;
+        console.log(`[Reprocess] ✓ ${result.width}x${result.height} → ${thumbnailUrl}`);
+      } else {
+        // Flag and queue for Windows agent
+        await updateAsset(asset.id, { thumbnail_error: result.reason });
+        try {
+          await queueRender(asset.id, result.reason);
+          queued++;
+        } catch { /* ignore queue errors */ }
+        failed++;
+        console.warn(`[Reprocess] ✗ ${asset.id}: ${result.message}`);
+      }
     } catch (err: any) {
       failed++;
       console.warn(`[Reprocess] ✗ ${asset.id}: ${err.message}`);
     }
   }
 
-  console.log(`[Reprocess] Done. Success: ${success}, Failed: ${failed}, Skipped: ${skipped}`);
+  console.log(`[Reprocess] Done. Success: ${success}, Failed: ${failed}, Queued: ${queued}, Skipped: ${skipped}`);
+}
+
+/** Backfill: queue all AI assets without thumbnails for the Windows render agent */
+async function queueFailedThumbs() {
+  console.log("[QueueFailedThumbs] Fetching AI assets without thumbnails...");
+
+  const baseUrl = `${config.supabaseUrl}/rest/v1/assets`;
+  const batchSize = 1000;
+  let offset = 0;
+  let allAssets: { id: string; filename: string }[] = [];
+
+  while (true) {
+    const params = new URLSearchParams({
+      select: "id,filename",
+      file_type: "eq.ai",
+      thumbnail_url: "is.null",
+      limit: String(batchSize),
+      offset: String(offset),
+    });
+
+    const res = await fetch(`${baseUrl}?${params}`, {
+      headers: {
+        apikey: config.supabaseAnonKey,
+        Authorization: `Bearer ${config.supabaseAnonKey}`,
+      },
+    });
+
+    if (!res.ok) throw new Error(`Failed to fetch assets: ${res.status}`);
+    const page = (await res.json()) as { id: string; filename: string }[];
+    allAssets = allAssets.concat(page);
+    if (page.length < batchSize) break;
+    offset += batchSize;
+  }
+
+  console.log(`[QueueFailedThumbs] Found ${allAssets.length} AI assets to queue`);
+
+  let queued = 0;
+  for (const asset of allAssets) {
+    try {
+      await queueRender(asset.id, "no_pdf_compat");
+      await updateAsset(asset.id, { thumbnail_error: "no_pdf_compat" });
+      queued++;
+      if (queued % 50 === 0) console.log(`[QueueFailedThumbs] Queued ${queued}/${allAssets.length}`);
+    } catch (err: any) {
+      console.warn(`[QueueFailedThumbs] Failed to queue ${asset.id}: ${err.message}`);
+    }
+  }
+
+  console.log(`[QueueFailedThumbs] Done. Queued: ${queued}`);
 }
 
 /** Backfill real file modification dates for all assets */
@@ -205,15 +267,19 @@ async function backfillDates() {
 
 /** Main loop */
 async function main() {
-  // Check for backfill-dates mode
+  // Check for CLI modes
   if (process.argv.includes("--backfill-dates")) {
     await backfillDates();
     process.exit(0);
   }
 
-  // Check for reprocess mode
   if (process.argv.includes("--reprocess")) {
     await reprocess();
+    process.exit(0);
+  }
+
+  if (process.argv.includes("--queue-failed-thumbs")) {
+    await queueFailedThumbs();
     process.exit(0);
   }
 

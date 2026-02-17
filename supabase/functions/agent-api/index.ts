@@ -6,6 +6,15 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-agent-key",
 };
 
+/** Derive workflow_status from folder path */
+function deriveWorkflowStatus(filePath: string): string | null {
+  const lower = filePath.toLowerCase();
+  if (lower.includes("in process") || lower.includes("in_process")) return "in_process";
+  if (lower.includes("customer adopted") || lower.includes("customer_adopted")) return "customer_adopted";
+  if (lower.includes("licensor approved") || lower.includes("licensor_approved")) return "licensor_approved";
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -17,7 +26,6 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   const path = url.pathname.split("/").filter(Boolean);
-  // path: /agent-api/{action}
   const action = path[path.length - 1];
 
   try {
@@ -28,7 +36,6 @@ Deno.serve(async (req) => {
         return json({ error: "agent_name and agent_key required" }, 400);
       }
 
-      // Upsert by agent_key
       const { data, error } = await supabase
         .from("agent_registrations")
         .upsert(
@@ -77,7 +84,6 @@ Deno.serve(async (req) => {
 
       const jobStatus = status === "failed" ? "failed" : "completed";
 
-      // Update the job
       const { error: jobError } = await supabase
         .from("processing_queue")
         .update({
@@ -89,7 +95,6 @@ Deno.serve(async (req) => {
 
       if (jobError) return json({ error: jobError.message }, 500);
 
-      // If asset updates provided (thumbnail_url, ai_description, etc.), apply them
       if (asset_updates && asset_updates.asset_id) {
         const { asset_id, ...updates } = asset_updates;
         const { error: assetError } = await supabase
@@ -110,7 +115,8 @@ Deno.serve(async (req) => {
         return json({ error: "filename, file_path, and file_type required" }, 400);
       }
 
-      // Create asset record
+      const workflow_status = deriveWorkflowStatus(file_path);
+
       const { data: asset, error: assetError } = await supabase
         .from("assets")
         .insert({
@@ -125,13 +131,13 @@ Deno.serve(async (req) => {
           modified_at: modified_at || new Date().toISOString(),
           file_created_at: file_created_at || null,
           status: "pending",
+          workflow_status,
         })
         .select()
         .single();
 
       if (assetError) return json({ error: assetError.message }, 500);
 
-      // Queue a tagging job
       const { error: queueError } = await supabase
         .from("processing_queue")
         .insert({ asset_id: asset.id, job_type: "tag", status: "pending" });
@@ -141,7 +147,7 @@ Deno.serve(async (req) => {
       return json({ asset, queued: true });
     }
 
-    // --- UPDATE ASSET (e.g. thumbnail_url, dimensions) ---
+    // --- UPDATE ASSET ---
     if (action === "update-asset" && req.method === "POST") {
       const { asset_id, ...updates } = await req.json();
       if (!asset_id) return json({ error: "asset_id required" }, 400);
@@ -166,6 +172,146 @@ Deno.serve(async (req) => {
 
       if (error) return json({ error: error.message }, 500);
       return json({ reset_count: data });
+    }
+
+    // --- MOVE ASSET (file moved to new folder) ---
+    if (action === "move-asset" && req.method === "POST") {
+      const { old_path, new_path } = await req.json();
+      if (!old_path || !new_path) {
+        return json({ error: "old_path and new_path required" }, 400);
+      }
+
+      // Find asset by old path
+      const { data: asset, error: findError } = await supabase
+        .from("assets")
+        .select("id, file_path")
+        .eq("file_path", old_path)
+        .maybeSingle();
+
+      if (findError) return json({ error: findError.message }, 500);
+      if (!asset) return json({ error: "Asset not found at old_path" }, 404);
+
+      const workflow_status = deriveWorkflowStatus(new_path);
+
+      // Update asset path + workflow status
+      const updateData: Record<string, unknown> = { file_path: new_path };
+      if (workflow_status) updateData.workflow_status = workflow_status;
+
+      const { error: updateError } = await supabase
+        .from("assets")
+        .update(updateData)
+        .eq("id", asset.id);
+
+      if (updateError) return json({ error: updateError.message }, 500);
+
+      // Log movement in history
+      const { error: historyError } = await supabase
+        .from("asset_path_history")
+        .insert({ asset_id: asset.id, old_path, new_path });
+
+      if (historyError) {
+        console.error("Failed to log path history:", historyError.message);
+      }
+
+      return json({ success: true, asset_id: asset.id, workflow_status });
+    }
+
+    // --- QUEUE RENDER (bridge agent flags a failed thumbnail) ---
+    if (action === "queue-render" && req.method === "POST") {
+      const { asset_id, reason } = await req.json();
+      if (!asset_id) return json({ error: "asset_id required" }, 400);
+
+      // Check for existing pending/claimed job
+      const { data: existing } = await supabase
+        .from("render_queue")
+        .select("id")
+        .eq("asset_id", asset_id)
+        .in("status", ["pending", "claimed"])
+        .maybeSingle();
+
+      if (existing) {
+        return json({ success: true, message: "Already queued", job_id: existing.id });
+      }
+
+      const { data, error } = await supabase
+        .from("render_queue")
+        .insert({ asset_id, status: "pending" })
+        .select()
+        .single();
+
+      if (error) return json({ error: error.message }, 500);
+      return json({ success: true, job: data });
+    }
+
+    // --- CLAIM RENDER (Windows agent polls for work) ---
+    if (action === "claim-render" && req.method === "POST") {
+      const { agent_name, batch_size } = await req.json();
+      if (!agent_name) return json({ error: "agent_name required" }, 400);
+
+      const limit = batch_size || 5;
+      const now = new Date().toISOString();
+
+      // Atomically claim pending jobs
+      const { data: jobs, error } = await supabase
+        .from("render_queue")
+        .update({ status: "claimed", claimed_by: agent_name, claimed_at: now })
+        .eq("status", "pending")
+        .select("id, asset_id, created_at")
+        .limit(limit);
+
+      if (error) return json({ error: error.message }, 500);
+
+      // For each claimed job, fetch the asset's file_path
+      const enrichedJobs = [];
+      for (const job of jobs || []) {
+        const { data: asset } = await supabase
+          .from("assets")
+          .select("id, file_path, filename, file_type")
+          .eq("id", job.asset_id)
+          .single();
+        enrichedJobs.push({ ...job, asset });
+      }
+
+      return json({ jobs: enrichedJobs });
+    }
+
+    // --- COMPLETE RENDER (Windows agent reports result) ---
+    if (action === "complete-render" && req.method === "POST") {
+      const { job_id, status, thumbnail_url, error_message } = await req.json();
+      if (!job_id) return json({ error: "job_id required" }, 400);
+
+      const jobStatus = status === "failed" ? "failed" : "completed";
+      const now = new Date().toISOString();
+
+      // Update render queue job
+      const { data: job, error: jobError } = await supabase
+        .from("render_queue")
+        .update({
+          status: jobStatus,
+          completed_at: now,
+          error_message: error_message || null,
+        })
+        .eq("id", job_id)
+        .select("asset_id")
+        .single();
+
+      if (jobError) return json({ error: jobError.message }, 500);
+
+      // If successful, update the asset with the thumbnail
+      if (jobStatus === "completed" && thumbnail_url && job) {
+        const { error: assetError } = await supabase
+          .from("assets")
+          .update({
+            thumbnail_url,
+            thumbnail_error: null, // Clear the error flag
+            status: "processing",
+          })
+          .eq("id", job.asset_id);
+
+        if (assetError) return json({ error: assetError.message }, 500);
+      }
+
+      return json({ success: true });
     }
 
     return json({ error: "Unknown action: " + action }, 404);
