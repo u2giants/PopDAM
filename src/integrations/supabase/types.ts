@@ -560,6 +560,7 @@ export type Database = {
         }
       }
       get_asset_count: { Args: never; Returns: number }
+      get_filter_counts: { Args: never; Returns: Json }
       reset_stale_jobs: {
         Args: { p_timeout_minutes?: number }
         Returns: number
