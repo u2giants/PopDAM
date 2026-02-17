@@ -91,9 +91,18 @@ Deno.serve(async (req) => {
         const updates: Record<string, unknown> = { status: "tagged" };
 
         // Filterable tags (lowercase, deduplicated)
+        const tagSet = new Set<string>();
         if (parsed.tags && Array.isArray(parsed.tags)) {
-          updates.tags = [...new Set(parsed.tags.map((t: string) => t.toLowerCase().trim()).filter(Boolean))];
+          parsed.tags.forEach((t: string) => {
+            const clean = t.toLowerCase().trim();
+            if (clean) tagSet.add(clean);
+          });
         }
+        // Add tech pack extracted info as tags too
+        if (parsed.designer) tagSet.add(`designer: ${parsed.designer.trim()}`);
+        if (parsed.style_guide_ref) tagSet.add(`sg: ${parsed.style_guide_ref.trim()}`);
+        if (parsed.product_size) tagSet.add(`size: ${parsed.product_size.trim()}`);
+        updates.tags = [...tagSet];
 
         // Scene/action description (what's happening in the art)
         if (parsed.scene_description) updates.scene_description = parsed.scene_description;
@@ -172,6 +181,7 @@ Your job is to analyze design asset images and produce:
 1. FILTERABLE TAGS — short, lowercase keywords a designer would use to find this asset. Include: licensor name, property name, individual character names, product type, colors, design style (e.g. "allover print", "group shot", "single character", "3d lenticular", "canvas", "repeat pattern"), mood, and any other relevant search terms.
 2. SCENE DESCRIPTION — one sentence describing what is happening in the artwork itself (the characters' poses, the composition, the pattern type). NOT a description of the photograph or the physical product.
 3. TAXONOMY MATCHING — map to the company's internal taxonomy using exact names provided.
+4. TECH PACK EXTRACTION — if the image shows a tech pack or specification sheet, extract any visible text information such as: designer name/initials, style guide reference, product dimensions/sizes, color callouts, material specs, and any reference numbers. Include these as structured fields.
 
 Always respond with valid JSON.`;
 
@@ -210,13 +220,20 @@ Respond with JSON in this exact format:
   "big_theme": "theme category or null",
   "little_theme": "specific theme or null",
   "design_ref": "design reference number if visible or null",
-  "design_style": "design style number if visible or null"
+  "design_style": "design style number if visible or null",
+  "designer": "designer name or initials if visible on the image or null",
+  "style_guide_ref": "style guide reference if visible or null",
+  "product_size": "product dimensions/size if visible or null"
 }
 
 RULES:
 - tags: 8-20 lowercase keywords. Include licensor, property, each character name, product type, dominant colors, composition style (group shot, single character, allover print, repeat pattern, 3d lenticular, etc.), and any relevant search terms.
 - scene_description: Describe ONLY what is depicted in the artwork/design — character poses, pattern layout, composition. NOT the physical product or photograph.
-- Only use property_name/character_names/product_subtype_name that EXACTLY match the available options. If unsure, use null.`;
+- Only use property_name/character_names/product_subtype_name that EXACTLY match the available options. If unsure, use null.
+- If the image shows a tech pack / spec sheet, extract designer, style_guide_ref, product_size from visible text. Also add "tech pack" to tags.
+- designer: look for text like "Designer:", "Created by:", initials, or signature text on the image.
+- style_guide_ref: look for "Style Guide:", "SG#", or reference codes.
+- product_size: look for dimensions, sizing info like "60x80", "Twin", "Queen", etc.`;
 }
 
 function json(data: unknown, status = 200) {
