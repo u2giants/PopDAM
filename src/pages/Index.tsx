@@ -3,7 +3,7 @@ import { useAssets, DbAsset } from "@/hooks/useAssets";
 import { useAssetCount } from "@/hooks/useAssetCount";
 import { useQueryClient } from "@tanstack/react-query";
 import AppHeader from "@/components/dam/AppHeader";
-import TopBar from "@/components/dam/TopBar";
+import TopBar, { SortField, SortDir } from "@/components/dam/TopBar";
 import FilterSidebar from "@/components/dam/FilterSidebar";
 import AssetGrid from "@/components/dam/AssetGrid";
 import AssetDetailPanel from "@/components/dam/AssetDetailPanel";
@@ -25,6 +25,8 @@ const Index = () => {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<SortField>("ingested_at");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const selectedAsset = useMemo(() => {
     if (!selectedAssetId) return null;
@@ -39,7 +41,7 @@ const Index = () => {
   const lastSelectedIndex = useRef<number | null>(null);
 
   const filteredAssets = useMemo(() => {
-    return assets.filter((asset) => {
+    const filtered = assets.filter((asset) => {
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         const matchesSearch =
@@ -70,7 +72,29 @@ const Index = () => {
 
       return true;
     });
-  }, [assets, searchQuery, selectedFileTypes, selectedStatuses, selectedImageTypes, selectedLicensorIds, selectedPropertyIds]);
+
+    // Sort
+    filtered.sort((a, b) => {
+      let cmp = 0;
+      switch (sortField) {
+        case "filename":
+          cmp = a.filename.localeCompare(b.filename);
+          break;
+        case "file_size":
+          cmp = a.file_size - b.file_size;
+          break;
+        case "modified_at":
+          cmp = new Date(a.modified_at).getTime() - new Date(b.modified_at).getTime();
+          break;
+        case "ingested_at":
+          cmp = new Date(a.ingested_at).getTime() - new Date(b.ingested_at).getTime();
+          break;
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+
+    return filtered;
+  }, [assets, searchQuery, selectedFileTypes, selectedStatuses, selectedImageTypes, selectedLicensorIds, selectedPropertyIds, sortField, sortDir]);
 
   const toggleInList = (setter: React.Dispatch<React.SetStateAction<string[]>>) => (val: string) =>
     setter((prev) => (prev.includes(val) ? prev.filter((v) => v !== val) : [...prev, val]));
@@ -87,7 +111,6 @@ const Index = () => {
     const currentIndex = filteredAssets.findIndex((a) => a.id === asset.id);
 
     if (e.shiftKey && lastSelectedIndex.current !== null) {
-      // Shift+click: select range
       const start = Math.min(lastSelectedIndex.current, currentIndex);
       const end = Math.max(lastSelectedIndex.current, currentIndex);
       setSelectedIds((prev) => {
@@ -98,7 +121,6 @@ const Index = () => {
         return next;
       });
     } else {
-      // Ctrl/Cmd+click or plain click: toggle individual
       setSelectedIds((prev) => {
         const next = new Set(prev);
         if (next.has(asset.id)) {
@@ -112,12 +134,16 @@ const Index = () => {
     lastSelectedIndex.current = currentIndex;
   }, [filteredAssets]);
 
-  // After AI tagging, switch filter to "tagged" and highlight the asset
   const handleTagSuccess = useCallback((taggedAssetIds: string[]) => {
     setSelectedStatuses(["tagged"]);
     if (taggedAssetIds.length === 1) {
       setSelectedAssetId(taggedAssetIds[0]);
     }
+  }, []);
+
+  const handleSortChange = useCallback((field: SortField, dir: SortDir) => {
+    setSortField(field);
+    setSortDir(dir);
   }, []);
 
   return (
@@ -133,6 +159,9 @@ const Index = () => {
         onToggleFilters={() => setFiltersOpen(!filtersOpen)}
         onSync={handleSync}
         isSyncing={isFetching}
+        sortField={sortField}
+        sortDir={sortDir}
+        onSortChange={handleSortChange}
       />
       <div className="flex-1 flex overflow-hidden">
         <FilterSidebar
@@ -157,6 +186,7 @@ const Index = () => {
             selectedIds={selectedIds}
             onSelect={handleSelect}
             selectionMode={selectedIds.size > 0}
+            viewMode={viewMode}
           />
           <BulkActionBar
             selectedIds={Array.from(selectedIds)}

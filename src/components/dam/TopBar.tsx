@@ -1,7 +1,25 @@
-import { Search, SlidersHorizontal, LayoutGrid, List, RefreshCw } from "lucide-react";
+import { Search, SlidersHorizontal, LayoutGrid, List, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+export type SortField = "modified_at" | "filename" | "file_size" | "ingested_at";
+export type SortDir = "asc" | "desc";
+
+const SORT_LABELS: Record<SortField, string> = {
+  modified_at: "Date Modified",
+  filename: "Name",
+  file_size: "Size",
+  ingested_at: "Recently Added",
+};
 
 interface TopBarProps {
   searchQuery: string;
@@ -13,6 +31,9 @@ interface TopBarProps {
   onToggleFilters: () => void;
   onSync: () => void;
   isSyncing?: boolean;
+  sortField: SortField;
+  sortDir: SortDir;
+  onSortChange: (field: SortField, dir: SortDir) => void;
 }
 
 const TopBar = ({
@@ -25,6 +46,9 @@ const TopBar = ({
   onToggleFilters,
   onSync,
   isSyncing,
+  sortField,
+  sortDir,
+  onSortChange,
 }: TopBarProps) => {
   return (
     <div className="flex items-center gap-3 px-6 py-3 border-b border-border bg-card">
@@ -42,6 +66,36 @@ const TopBar = ({
         <SlidersHorizontal className="h-4 w-4" />
         Filters
       </Button>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm" className="gap-2">
+            <ArrowUpDown className="h-4 w-4" />
+            {SORT_LABELS[sortField]}
+            {sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuRadioGroup
+            value={sortField}
+            onValueChange={(v) => onSortChange(v as SortField, sortDir)}
+          >
+            {(Object.keys(SORT_LABELS) as SortField[]).map((f) => (
+              <DropdownMenuRadioItem key={f} value={f}>
+                {SORT_LABELS[f]}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuRadioGroup
+            value={sortDir}
+            onValueChange={(v) => onSortChange(sortField, v as SortDir)}
+          >
+            <DropdownMenuRadioItem value="desc">Descending</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="asc">Ascending</DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <div className="flex items-center border border-border rounded-md">
         <Button
