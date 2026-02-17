@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { usePathDisplay, isSynologyConfigured } from "@/hooks/usePathDisplay";
 import AssetOperationsPanel from "./AssetOperationsPanel";
+import SynologyDriveSetupDialog from "./SynologyDriveSetupDialog";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 interface AssetDetailPanelProps {
@@ -41,6 +42,7 @@ const AssetDetailPanel = ({ asset, onClose, onTagSuccess }: AssetDetailPanelProp
   const { toast } = useToast();
   const { accessMode, setAccessMode, hostMode, toggleHostMode, displayPath } = usePathDisplay();
   const [imageExpanded, setImageExpanded] = useState(false);
+  const [synologySetupOpen, setSynologySetupOpen] = useState(false);
 
   if (!asset) return null;
 
@@ -196,10 +198,14 @@ const AssetDetailPanel = ({ asset, onClose, onTagSuccess }: AssetDetailPanelProp
           <Button
             variant={accessMode === "remote" ? "default" : "outline"}
             size="sm"
-            onClick={() => setAccessMode(synologyReady ? "remote" : "office")}
+            onClick={() => {
+              if (synologyReady) {
+                setAccessMode("remote");
+              } else {
+                setSynologySetupOpen(true);
+              }
+            }}
             className="text-xs flex-1 h-7"
-            disabled={!synologyReady}
-            title={!synologyReady ? "Set up Synology Drive in Settings first" : ""}
           >
             Remote
           </Button>
@@ -215,11 +221,17 @@ const AssetDetailPanel = ({ asset, onClose, onTagSuccess }: AssetDetailPanelProp
               className="text-[10px] h-6 px-2 text-muted-foreground gap-1"
               title="Toggle between hostname and IP"
             >
-              <RefreshCw className="h-2.5 w-2.5" />
-              {hostMode === "hostname" ? "Name" : "IP"}
+              {hostMode === "hostname" ? "Name" : "IP"} <RefreshCw className="h-2.5 w-2.5" />
             </Button>
           </div>
         )}
+
+        {/* Synology Drive setup dialog (triggered from Remote button) */}
+        <SynologyDriveSetupDialog
+          open={synologySetupOpen}
+          onOpenChange={setSynologySetupOpen}
+          onComplete={() => setAccessMode("remote")}
+        />
       </div>
 
       <Separator />

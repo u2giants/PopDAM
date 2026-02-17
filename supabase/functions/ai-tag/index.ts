@@ -145,19 +145,33 @@ Deno.serve(async (req) => {
 
         if (updateErr) throw new Error(updateErr.message);
 
-        // Handle characters (many-to-many)
+        // Handle characters (many-to-many) with verification
         if (parsed.character_names && Array.isArray(parsed.character_names)) {
           await supabase.from("asset_characters").delete().eq("asset_id", asset.id);
+          const verifiedChars: string[] = [];
           for (const charName of parsed.character_names) {
             const char = taxonomy.characters.find(
               (c) => c.name.toLowerCase() === charName.toLowerCase()
             );
             if (char) {
+              // Verify: only accept characters that belong to the matched property
+              if (updates.property_id) {
+                const charRecord = taxonomy.characters.find(c => c.id === char.id);
+                const charProperty = taxonomy.properties.find(p => p.id === charRecord?.property_id);
+                if (charProperty && charProperty.id !== updates.property_id) {
+                  console.warn(`Character "${charName}" belongs to property "${charProperty.name}", not the matched property. Skipping.`);
+                  continue;
+                }
+              }
               await supabase.from("asset_characters").insert({
                 asset_id: asset.id,
                 character_id: char.id,
               });
+              verifiedChars.push(charName);
             }
+          }
+          if (verifiedChars.length !== parsed.character_names.length) {
+            console.warn(`Asset ${asset.id}: AI suggested ${parsed.character_names.length} characters, verified ${verifiedChars.length}. Dropped: ${parsed.character_names.filter((n: string) => !verifiedChars.some(v => v.toLowerCase() === n.toLowerCase())).join(", ")}`);
           }
         }
 
@@ -182,6 +196,15 @@ Your job is to analyze design asset images and produce:
 2. SCENE DESCRIPTION — one sentence describing what is happening in the artwork itself (the characters' poses, the composition, the pattern type). NOT a description of the photograph or the physical product.
 3. TAXONOMY MATCHING — map to the company's internal taxonomy using exact names provided.
 4. TECH PACK EXTRACTION — if the image shows a tech pack or specification sheet, extract any visible text information such as: designer name/initials, style guide reference, product dimensions/sizes, color callouts, material specs, and any reference numbers. Include these as structured fields.
+
+CHARACTER IDENTIFICATION — CRITICAL RULES:
+- You MUST identify each character INDIVIDUALLY based on their VISUAL APPEARANCE in the image, not assumptions.
+- Do NOT guess character names. Only tag characters you can visually confirm.
+- Pay close attention to distinguishing features: costume color, hair, accessories, body shape, logo/symbol.
+- Spider-Man (Peter Parker) wears RED and BLUE. Spider-Woman (Jessica Drew) wears RED and YELLOW. Miles Morales wears BLACK and RED. Spider-Gwen wears WHITE with a hood.
+- If you cannot confidently identify a specific character, describe them generically (e.g. "unidentified character") rather than guessing wrong.
+- For group shots, identify EACH character separately. Do not assume a character is present just because others from the same property are.
+- VERIFY each character name against the available characters list. Only use EXACT matches.
 
 Always respond with valid JSON.`;
 
@@ -230,6 +253,7 @@ RULES:
 - tags: 8-20 lowercase keywords. Include licensor, property, each character name, product type, dominant colors, composition style (group shot, single character, allover print, repeat pattern, 3d lenticular, etc.), and any relevant search terms.
 - scene_description: Describe ONLY what is depicted in the artwork/design — character poses, pattern layout, composition. NOT the physical product or photograph.
 - Only use property_name/character_names/product_subtype_name that EXACTLY match the available options. If unsure, use null.
+- CHARACTER IDENTIFICATION IS CRITICAL: Identify each character by their VISUAL features (costume colors, accessories, hair, symbols). Do NOT assume a character is present — confirm by sight. If you cannot visually confirm a character's identity, omit them from character_names entirely.
 - If the image shows a tech pack / spec sheet, extract designer, style_guide_ref, product_size from visible text. Also add "tech pack" to tags.
 - designer: look for text like "Designer:", "Created by:", initials, or signature text on the image.
 - style_guide_ref: look for "Style Guide:", "SG#", or reference codes.
