@@ -177,8 +177,8 @@ export async function scan(): Promise<ScannedFile[]> {
         });
 
         hashToPath.set(hash, uncPath);
-      } catch {
-        // Skip individual file errors
+      } catch (err: any) {
+        console.warn(`[Scanner] Error processing ${filePath}: ${err.message}`);
       }
     }
   }
