@@ -42,6 +42,7 @@ async function processBatch(files: ScannedFile[]) {
           thumbnail_url: thumbnailUrl,
           width: thumb.width,
           height: thumb.height,
+          status: "processing",
         });
         console.log(`[Agent] Thumbnail uploaded: ${thumb.width}x${thumb.height} → ${thumbnailUrl}`);
       } catch (thumbErr: any) {
@@ -120,6 +121,7 @@ async function reprocess() {
         thumbnail_url: thumbnailUrl,
         width: thumb.width,
         height: thumb.height,
+        status: "processing",
       });
 
       success++;
