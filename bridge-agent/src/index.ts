@@ -74,7 +74,7 @@ async function reprocess() {
     throw new Error(`Failed to fetch assets: ${res.status}`);
   }
 
-  const assets: { id: string; file_path: string; file_type: "psd" | "ai" }[] = await res.json();
+  const assets = (await res.json()) as { id: string; file_path: string; file_type: "psd" | "ai" }[];
   console.log(`[Reprocess] Found ${assets.length} assets to process`);
 
   let success = 0;
