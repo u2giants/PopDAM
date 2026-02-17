@@ -29,7 +29,8 @@ export function useAssets() {
             product_type:product_types(id, name, product_category:product_categories(id, name))
           )
         `)
-        .order("ingested_at", { ascending: false });
+        .order("ingested_at", { ascending: false })
+        .limit(10000);
 
       if (error) throw error;
 
