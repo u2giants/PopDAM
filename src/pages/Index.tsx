@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useAssets, DbAsset } from "@/hooks/useAssets";
 import { useAssetCount } from "@/hooks/useAssetCount";
+import { useQueryClient } from "@tanstack/react-query";
 import AppHeader from "@/components/dam/AppHeader";
 import TopBar from "@/components/dam/TopBar";
 import FilterSidebar from "@/components/dam/FilterSidebar";
@@ -8,8 +9,15 @@ import AssetGrid from "@/components/dam/AssetGrid";
 import AssetDetailPanel from "@/components/dam/AssetDetailPanel";
 
 const Index = () => {
-  const { data: assets = [], isLoading } = useAssets();
+  const queryClient = useQueryClient();
+  const { data: assets = [], isLoading, isFetching } = useAssets();
   const { data: totalAssetCount } = useAssetCount();
+
+  const handleSync = () => {
+    queryClient.invalidateQueries({ queryKey: ["assets"] });
+    queryClient.invalidateQueries({ queryKey: ["asset-count"] });
+    queryClient.invalidateQueries({ queryKey: ["status-counts"] });
+  };
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [filtersOpen, setFiltersOpen] = useState(true);
@@ -70,6 +78,8 @@ const Index = () => {
         totalAssets={totalAssetCount ?? assets.length}
         filteredCount={filteredAssets.length}
         onToggleFilters={() => setFiltersOpen(!filtersOpen)}
+        onSync={handleSync}
+        isSyncing={isFetching}
       />
       <div className="flex-1 flex overflow-hidden">
         <FilterSidebar

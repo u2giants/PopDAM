@@ -11,6 +11,8 @@ interface TopBarProps {
   totalAssets: number;
   filteredCount: number;
   onToggleFilters: () => void;
+  onSync: () => void;
+  isSyncing?: boolean;
 }
 
 const TopBar = ({
@@ -21,6 +23,8 @@ const TopBar = ({
   totalAssets,
   filteredCount,
   onToggleFilters,
+  onSync,
+  isSyncing,
 }: TopBarProps) => {
   return (
     <div className="flex items-center gap-3 px-6 py-3 border-b border-border bg-card">
@@ -64,8 +68,8 @@ const TopBar = ({
           : `${filteredCount} / ${totalAssets}`}
       </Badge>
 
-      <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
-        <RefreshCw className="h-4 w-4" />
+      <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground" onClick={onSync} disabled={isSyncing}>
+        <RefreshCw className={`h-4 w-4 ${isSyncing ? "animate-spin" : ""}`} />
         Sync
       </Button>
     </div>
