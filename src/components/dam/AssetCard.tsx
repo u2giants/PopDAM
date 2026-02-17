@@ -20,6 +20,14 @@ const statusColors: Record<string, string> = {
   error: "bg-destructive/20 text-destructive",
 };
 
+function getDisplayStatus(asset: { status: string; thumbnail_url: string | null }): { label: string; colorClass: string } {
+  if (asset.status === "tagged") return { label: "tagged", colorClass: statusColors.tagged };
+  if (asset.status === "error") return { label: "error", colorClass: statusColors.error };
+  if (asset.thumbnail_url) return { label: "preview ready", colorClass: "bg-primary/20 text-primary" };
+  if (asset.status === "processing") return { label: "processing", colorClass: statusColors.processing };
+  return { label: "pending", colorClass: statusColors.pending };
+}
+
 const placeholderColors = [
   "from-red-900/40 to-red-800/20",
   "from-blue-900/40 to-blue-800/20",
@@ -63,9 +71,14 @@ const AssetCard = ({ asset, onClick }: AssetCardProps) => {
         )}
 
         <div className="absolute top-2 right-2">
-          <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${statusColors[asset.status]}`}>
-            {asset.status}
-          </span>
+          {(() => {
+            const ds = getDisplayStatus(asset);
+            return (
+              <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${ds.colorClass}`}>
+                {ds.label}
+              </span>
+            );
+          })()}
         </div>
 
         {asset.artboards > 1 && (

@@ -119,7 +119,7 @@ const NasConnectionPanel = () => {
   }
 
   const isOnline = agent?.isOnline ?? false;
-  const agentName = agent?.agent_name ?? "Unknown";
+  const agentName = agent?.agent_name ?? "No agent registered";
 
   return (
     <div className="border-t border-border">

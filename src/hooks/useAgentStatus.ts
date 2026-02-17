@@ -22,9 +22,10 @@ export function useAgentStatus() {
         .select("*")
         .order("last_heartbeat", { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
+      if (!data) return null;
 
       const lastBeat = new Date(data.last_heartbeat).getTime();
       const now = Date.now();
