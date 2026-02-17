@@ -5,6 +5,7 @@ import NasConnectionPanel from "@/components/dam/NasConnectionPanel";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLicensors, useProperties } from "@/hooks/useAssets";
+import { useStatusCounts } from "@/hooks/useStatusCounts";
 
 interface FilterSidebarProps {
   selectedFileTypes: string[];
@@ -33,6 +34,7 @@ const FilterSidebar = ({
 }: FilterSidebarProps) => {
   const { data: licensors = [] } = useLicensors();
   const { data: properties = [] } = useProperties();
+  const { data: statusCounts } = useStatusCounts();
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(["fileType", "status", "licensors", "properties"])
   );
@@ -105,9 +107,14 @@ const FilterSidebar = ({
                 onCheckedChange={() => onStatusToggle(s.value)}
               />
               <span className={`w-2 h-2 rounded-full ${s.color}`} />
-              <span className="text-sm text-secondary-foreground group-hover:text-foreground transition-colors">
+              <span className="text-sm text-secondary-foreground group-hover:text-foreground transition-colors flex-1">
                 {s.label}
               </span>
+              {statusCounts && (
+                <span className="text-[10px] font-mono text-muted-foreground tabular-nums">
+                  {statusCounts[s.value as keyof typeof statusCounts] ?? 0}
+                </span>
+              )}
             </label>
           ))}
         </div>
