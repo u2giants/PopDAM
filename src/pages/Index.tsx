@@ -8,9 +8,11 @@ import FilterSidebar from "@/components/dam/FilterSidebar";
 import AssetGrid from "@/components/dam/AssetGrid";
 import AssetDetailPanel from "@/components/dam/AssetDetailPanel";
 import BulkActionBar from "@/components/dam/BulkActionBar";
+import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const { data: assets = [], isLoading, isFetching } = useAssets();
   const { data: totalAssetCount } = useAssetCount();
 
@@ -81,6 +83,16 @@ const Index = () => {
     });
   }, []);
 
+  // After AI tagging, switch filter to "tagged" and highlight the asset
+  const handleTagSuccess = useCallback((taggedAssetIds: string[]) => {
+    setSelectedStatuses(["tagged"]);
+    if (taggedAssetIds.length === 1) {
+      // Find the asset and select it in the detail panel
+      const taggedAsset = assets.find((a) => a.id === taggedAssetIds[0]);
+      if (taggedAsset) setSelectedAsset(taggedAsset);
+    }
+  }, [assets]);
+
   return (
     <div className="h-screen flex flex-col bg-background">
       <AppHeader />
@@ -121,9 +133,10 @@ const Index = () => {
             selectedIds={Array.from(selectedIds)}
             onClearSelection={() => setSelectedIds(new Set())}
             totalCount={filteredAssets.length}
+            onTagSuccess={handleTagSuccess}
           />
         </div>
-        <AssetDetailPanel asset={selectedAsset} onClose={() => setSelectedAsset(null)} />
+        <AssetDetailPanel asset={selectedAsset} onClose={() => setSelectedAsset(null)} onTagSuccess={handleTagSuccess} />
       </div>
     </div>
   );
