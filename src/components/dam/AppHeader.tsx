@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
-import { LayoutGrid, Settings, Activity, Database } from "lucide-react";
+import { LayoutGrid, Settings, Activity, Database, Wifi, WifiOff } from "lucide-react";
+import { useAgentStatus } from "@/hooks/useAgentStatus";
 
 const navItems = [
   { path: "/", label: "Library", icon: LayoutGrid },
@@ -10,6 +11,8 @@ const navItems = [
 
 const AppHeader = () => {
   const location = useLocation();
+  const { data: agent } = useAgentStatus();
+  const isOnline = agent?.isOnline ?? false;
 
   return (
     <header className="h-12 border-b border-border bg-sidebar flex items-center px-4 gap-6 shrink-0">
@@ -42,8 +45,13 @@ const AppHeader = () => {
 
       <div className="ml-auto flex items-center gap-3">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="w-2 h-2 rounded-full bg-success" />
-          NAS Connected
+          {isOnline ? (
+            <Wifi className="h-3 w-3 text-success" />
+          ) : (
+            <WifiOff className="h-3 w-3 text-destructive" />
+          )}
+          <span className="font-medium">{agent?.agent_name ?? "Agent"}</span>
+          <span className={`w-2 h-2 rounded-full ${isOnline ? "bg-success" : "bg-destructive"}`} />
         </div>
       </div>
     </header>

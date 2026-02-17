@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Server, Clock, FileType } from "lucide-react";
+import { ChevronDown, ChevronRight, Clock, FileType } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import NasConnectionPanel from "@/components/dam/NasConnectionPanel";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLicensors, useProperties } from "@/hooks/useAssets";
@@ -185,15 +186,7 @@ const FilterSidebar = ({
         )}
       </div>
 
-      {/* NAS Status */}
-      <div className="p-4">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Server className="h-3 w-3" />
-          <span>NAS01 via Tailscale</span>
-          <span className="w-2 h-2 rounded-full bg-success ml-auto" />
-          <span className="text-success">Connected</span>
-        </div>
-      </div>
+      <NasConnectionPanel />
     </div>
   );
 };

@@ -57,33 +57,48 @@ async function reprocess() {
   console.log("[Reprocess] Fetching assets without thumbnails...");
 
   const baseUrl = `${config.supabaseUrl}/rest/v1/assets`;
-  const params = new URLSearchParams({
-    select: "id,file_path,file_type",
-    or: "(thumbnail_url.is.null,thumbnail_url.like.data:*)",
-    limit: "1000",
-  });
+  const batchSize = 1000;
+  let offset = 0;
+  let allAssets: { id: string; file_path: string; file_type: "psd" | "ai" }[] = [];
 
-  const res = await fetch(`${baseUrl}?${params}`, {
-    headers: {
-      apikey: config.supabaseAnonKey,
-      Authorization: `Bearer ${config.supabaseAnonKey}`,
-    },
-  });
+  // Paginate to get ALL assets without thumbnails
+  while (true) {
+    const params = new URLSearchParams({
+      select: "id,file_path,file_type",
+      or: "(thumbnail_url.is.null,thumbnail_url.like.data:*)",
+      limit: String(batchSize),
+      offset: String(offset),
+    });
 
-  if (!res.ok) {
-    throw new Error(`Failed to fetch assets: ${res.status}`);
+    const res = await fetch(`${baseUrl}?${params}`, {
+      headers: {
+        apikey: config.supabaseAnonKey,
+        Authorization: `Bearer ${config.supabaseAnonKey}`,
+      },
+    });
+
+    if (!res.ok) {
+      throw new Error(`Failed to fetch assets: ${res.status}`);
+    }
+
+    const page = (await res.json()) as { id: string; file_path: string; file_type: "psd" | "ai" }[];
+    allAssets = allAssets.concat(page);
+
+    if (page.length < batchSize) break;
+    offset += batchSize;
   }
 
-  const assets = (await res.json()) as { id: string; file_path: string; file_type: "psd" | "ai" }[];
-  console.log(`[Reprocess] Found ${assets.length} assets to process`);
+  console.log(`[Reprocess] Found ${allAssets.length} assets to process`);
 
   let success = 0;
   let failed = 0;
 
-  for (const asset of assets) {
+  for (const asset of allAssets) {
     try {
-      // Convert UNC path back to local mount path
-      const localPath = asset.file_path.replace(/\\\\/g, "/").replace("//edgesynology2/mac", "/mnt/nas/mac");
+      // Convert UNC path (backslashes) to local mount path (forward slashes)
+      const localPath = asset.file_path
+        .replace(/\\/g, "/")
+        .replace("//edgesynology2/mac", "/mnt/nas/mac");
 
       const thumb = await generateThumbnail(localPath, asset.file_type, asset.id);
       const thumbnailUrl = await uploadThumbnail(thumb.thumbnailPath, asset.id);
@@ -96,7 +111,7 @@ async function reprocess() {
 
       success++;
       if (success % 50 === 0) {
-        console.log(`[Reprocess] Progress: ${success}/${assets.length}`);
+        console.log(`[Reprocess] Progress: ${success}/${allAssets.length}`);
       }
     } catch (err: any) {
       failed++;
