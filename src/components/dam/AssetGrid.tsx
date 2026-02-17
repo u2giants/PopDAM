@@ -6,12 +6,14 @@ interface AssetGridProps {
   assets: DbAsset[];
   onAssetClick: (asset: DbAsset) => void;
   isLoading?: boolean;
-  selectedIds: Set<string>;
-  onSelect: (asset: DbAsset, e: React.MouseEvent) => void;
-  selectionMode: boolean;
+  selectedIds?: Set<string>;
+  onSelect?: (asset: DbAsset, e: React.MouseEvent) => void;
+  selectionMode?: boolean;
 }
 
-const AssetGrid = ({ assets, onAssetClick, isLoading, selectedIds, onSelect, selectionMode }: AssetGridProps) => {
+const defaultSet = new Set<string>();
+
+const AssetGrid = ({ assets, onAssetClick, isLoading, selectedIds = defaultSet, onSelect, selectionMode = false }: AssetGridProps) => {
   if (isLoading) {
     return (
       <div className="flex-1 overflow-y-auto scrollbar-thin p-6">
