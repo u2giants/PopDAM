@@ -1,9 +1,10 @@
 import { DbAsset } from "@/hooks/useAssets";
-import { X, ExternalLink, Copy, FileType, Calendar, HardDrive, Layers, Tag, Sparkles, FolderOpen } from "lucide-react";
+import { X, ExternalLink, Copy, FileType, Calendar, HardDrive, Layers, Tag, Sparkles, FolderOpen, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import { usePathDisplay } from "@/hooks/usePathDisplay";
 
 interface AssetDetailPanelProps {
   asset: DbAsset | null;
@@ -41,11 +42,14 @@ const placeholderColors = [
 
 const AssetDetailPanel = ({ asset, onClose }: AssetDetailPanelProps) => {
   const { toast } = useToast();
+  const { hostMode, toggleHostMode, displayPath } = usePathDisplay();
 
   if (!asset) return null;
 
+  const mappedPath = displayPath(asset.file_path);
+
   const copyPath = () => {
-    navigator.clipboard.writeText(asset.file_path);
+    navigator.clipboard.writeText(mappedPath);
     toast({ title: "Path copied", description: "File path copied to clipboard" });
   };
 
@@ -115,16 +119,16 @@ const AssetDetailPanel = ({ asset, onClose }: AssetDetailPanelProps) => {
           <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Server Path</span>
         </div>
         <div className="bg-secondary rounded-md p-2 font-mono text-xs text-secondary-foreground break-all leading-relaxed">
-          {asset.file_path}
+          {mappedPath}
         </div>
         <div className="flex gap-2 mt-2">
           <Button variant="outline" size="sm" onClick={copyPath} className="text-xs gap-1.5 flex-1">
             <Copy className="h-3 w-3" />
             Copy Path
           </Button>
-          <Button variant="outline" size="sm" className="text-xs gap-1.5 flex-1">
-            <ExternalLink className="h-3 w-3" />
-            Open in Explorer
+          <Button variant="outline" size="sm" onClick={toggleHostMode} className="text-xs gap-1.5 flex-1" title={`Switch to ${hostMode === "hostname" ? "IP address" : "hostname"}`}>
+            <RefreshCw className="h-3 w-3" />
+            {hostMode === "hostname" ? "Use IP" : "Use Name"}
           </Button>
         </div>
       </div>
