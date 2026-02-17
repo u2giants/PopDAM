@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
             Authorization: `Bearer ${lovableKey}`,
           },
           body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
+            model: "google/gemini-3-flash-preview",
             messages: [
               { role: "system", content: "You are an expert at classifying design assets for a consumer products company. You analyze file names, paths, and thumbnails to identify licensed characters, properties, product categories, and write descriptions. Always respond with valid JSON." },
               ...(asset.thumbnail_url
