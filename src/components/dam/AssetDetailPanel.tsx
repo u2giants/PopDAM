@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { DbAsset } from "@/hooks/useAssets";
-import { X, Copy, FileType, Calendar, HardDrive, Tag, Sparkles, FolderOpen, RefreshCw, CloudCog } from "lucide-react";
+import { X, Copy, FileType, Calendar, HardDrive, Tag, Sparkles, FolderOpen, RefreshCw, ExternalLink, Maximize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { usePathDisplay, isSynologyConfigured } from "@/hooks/usePathDisplay";
 import AssetOperationsPanel from "./AssetOperationsPanel";
-import SynologyDriveSetupDialog from "./SynologyDriveSetupDialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 interface AssetDetailPanelProps {
   asset: DbAsset | null;
@@ -39,8 +39,8 @@ const placeholderColors = [
 
 const AssetDetailPanel = ({ asset, onClose, onTagSuccess }: AssetDetailPanelProps) => {
   const { toast } = useToast();
-  const { hostMode, cycleHostMode, displayPath, modeLabel } = usePathDisplay();
-  const [synologyDialogOpen, setSynologyDialogOpen] = useState(false);
+  const { accessMode, setAccessMode, hostMode, toggleHostMode, displayPath } = usePathDisplay();
+  const [imageExpanded, setImageExpanded] = useState(false);
 
   if (!asset) return null;
 
@@ -51,7 +51,26 @@ const AssetDetailPanel = ({ asset, onClose, onTagSuccess }: AssetDetailPanelProp
     toast({ title: "Path copied", description: "File path copied to clipboard" });
   };
 
+  const openFile = () => {
+    // Try file:// protocol; copy path as fallback
+    const filePath = mappedPath.replace(/\\/g, "/");
+    const fileUrl = filePath.startsWith("/") || filePath.startsWith("~")
+      ? `file://${filePath}`
+      : `file:///${filePath}`;
+    
+    const w = window.open(fileUrl, "_blank");
+    if (!w) {
+      navigator.clipboard.writeText(mappedPath);
+      toast({
+        title: "Path copied",
+        description: "Browser blocked direct open. Path copied — paste in File Explorer / Finder.",
+      });
+    }
+  };
+
   const colorPlaceholder = asset.color_placeholder || placeholderColors[asset.id.charCodeAt(0) % placeholderColors.length];
+
+  const synologyReady = isSynologyConfigured();
 
   return (
     <div className="w-96 border-l border-border bg-surface-overlay h-full overflow-y-auto scrollbar-thin animate-slide-in-right">
@@ -64,9 +83,17 @@ const AssetDetailPanel = ({ asset, onClose, onTagSuccess }: AssetDetailPanelProp
       </div>
 
       {/* Preview */}
-      <div className={`aspect-[4/3] bg-gradient-to-br ${colorPlaceholder} flex items-center justify-center m-4 rounded-lg overflow-hidden`}>
+      <div
+        className={`aspect-[4/3] bg-gradient-to-br ${colorPlaceholder} flex items-center justify-center m-4 rounded-lg overflow-hidden relative group cursor-pointer`}
+        onClick={() => asset.thumbnail_url && setImageExpanded(true)}
+      >
         {asset.thumbnail_url ? (
-          <img src={asset.thumbnail_url} alt={asset.filename} className="w-full h-full object-cover" />
+          <>
+            <img src={asset.thumbnail_url} alt={asset.filename} className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+              <Maximize2 className="h-6 w-6 text-white opacity-0 group-hover:opacity-80 transition-opacity" />
+            </div>
+          </>
         ) : (
           <div className="flex flex-col items-center gap-2 text-muted-foreground/60">
             <FileType className="h-12 w-12" />
@@ -76,6 +103,19 @@ const AssetDetailPanel = ({ asset, onClose, onTagSuccess }: AssetDetailPanelProp
           </div>
         )}
       </div>
+
+      {/* Expanded image dialog */}
+      <Dialog open={imageExpanded} onOpenChange={setImageExpanded}>
+        <DialogContent className="max-w-[90vw] max-h-[90vh] p-2 bg-black/95 border-border">
+          {asset.thumbnail_url && (
+            <img
+              src={asset.thumbnail_url}
+              alt={asset.filename}
+              className="w-full h-full object-contain max-h-[85vh]"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Filename */}
       <div className="px-4 pb-3">
@@ -97,7 +137,7 @@ const AssetDetailPanel = ({ asset, onClose, onTagSuccess }: AssetDetailPanelProp
 
       {/* Tags */}
       {asset.tags && asset.tags.length > 0 && (
-        <div className="px-4 pb-4">
+        <div className="px-4 py-3">
           <div className="flex items-center gap-2 mb-2">
             <Tag className="h-3 w-3 text-muted-foreground" />
             <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Tags</span>
@@ -126,34 +166,61 @@ const AssetDetailPanel = ({ asset, onClose, onTagSuccess }: AssetDetailPanelProp
         <div className="flex items-center gap-2 mb-2">
           <FolderOpen className="h-3 w-3 text-muted-foreground" />
           <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            {hostMode.startsWith("synology") ? "Local Path" : "Server Path"}
+            {accessMode === "remote" ? "Local Path" : "Server Path"}
           </span>
         </div>
         <div className="bg-secondary rounded-md p-2 font-mono text-xs text-secondary-foreground break-all leading-relaxed">
           {mappedPath}
         </div>
+
+        {/* Action buttons */}
         <div className="flex gap-2 mt-2">
           <Button variant="outline" size="sm" onClick={copyPath} className="text-xs gap-1.5 flex-1">
-            <Copy className="h-3 w-3" /> Copy Path
+            <Copy className="h-3 w-3" /> Copy
+          </Button>
+          <Button variant="outline" size="sm" onClick={openFile} className="text-xs gap-1.5 flex-1">
+            <ExternalLink className="h-3 w-3" /> Open
           </Button>
         </div>
-        <div className="flex gap-2 mt-2">
-          <Button variant="outline" size="sm" onClick={cycleHostMode} className="text-xs gap-1.5 flex-1" title="Cycle path display mode">
-            <RefreshCw className="h-3 w-3" /> {modeLabel()}
-          </Button>
-          {!isSynologyConfigured() && (
-            <Button variant="outline" size="sm" onClick={() => setSynologyDialogOpen(true)} className="text-xs gap-1.5" title="Set up Synology Drive path">
-              <CloudCog className="h-3 w-3" />
-            </Button>
-          )}
-        </div>
-      </div>
 
-      <SynologyDriveSetupDialog
-        open={synologyDialogOpen}
-        onOpenChange={setSynologyDialogOpen}
-        onComplete={() => {}}
-      />
+        {/* Access mode: In Office / Remote */}
+        <div className="flex gap-1 mt-2">
+          <Button
+            variant={accessMode === "office" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setAccessMode("office")}
+            className="text-xs flex-1 h-7"
+          >
+            In Office
+          </Button>
+          <Button
+            variant={accessMode === "remote" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setAccessMode(synologyReady ? "remote" : "office")}
+            className="text-xs flex-1 h-7"
+            disabled={!synologyReady}
+            title={!synologyReady ? "Set up Synology Drive in Settings first" : ""}
+          >
+            Remote
+          </Button>
+        </div>
+
+        {/* Sub-toggle: Name ↻ IP (only in office mode) */}
+        {accessMode === "office" && (
+          <div className="mt-1.5">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleHostMode}
+              className="text-[10px] h-6 px-2 text-muted-foreground gap-1"
+              title="Toggle between hostname and IP"
+            >
+              <RefreshCw className="h-2.5 w-2.5" />
+              {hostMode === "hostname" ? "Name" : "IP"}
+            </Button>
+          </div>
+        )}
+      </div>
 
       <Separator />
 
