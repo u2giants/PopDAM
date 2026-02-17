@@ -10,6 +10,7 @@ export interface ScannedFile {
   fileType: "psd" | "ai";
   fileSize: number;
   modifiedAt: Date;
+  createdAt: Date;        // Filesystem birthtime
   sha256: string;
 }
 
@@ -127,6 +128,7 @@ export async function scan(): Promise<ScannedFile[]> {
           fileType: ext,
           fileSize: stat.size,
           modifiedAt: stat.mtime,
+          createdAt: stat.birthtime,
           sha256: hash,
         });
 

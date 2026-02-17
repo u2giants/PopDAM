@@ -85,6 +85,7 @@ export type Database = {
           created_at: string
           design_ref: string | null
           design_style: string | null
+          file_created_at: string | null
           file_path: string
           file_size: number
           file_type: Database["public"]["Enums"]["file_type"]
@@ -114,6 +115,7 @@ export type Database = {
           created_at?: string
           design_ref?: string | null
           design_style?: string | null
+          file_created_at?: string | null
           file_path: string
           file_size?: number
           file_type: Database["public"]["Enums"]["file_type"]
@@ -143,6 +145,7 @@ export type Database = {
           created_at?: string
           design_ref?: string | null
           design_style?: string | null
+          file_created_at?: string | null
           file_path?: string
           file_size?: number
           file_type?: Database["public"]["Enums"]["file_type"]

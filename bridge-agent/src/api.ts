@@ -54,6 +54,7 @@ export async function ingestAsset(asset: {
   color_placeholder?: string;
   thumbnail_url?: string;
   modified_at?: string;
+  file_created_at?: string;
 }) {
   return post("ingest", asset);
 }
