@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { useAssets, DbAsset } from "@/hooks/useAssets";
 import { useAssetCount } from "@/hooks/useAssetCount";
 import { useQueryClient } from "@tanstack/react-query";
@@ -26,16 +26,17 @@ const Index = () => {
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
 
-  // Keep selectedAsset in sync with fresh query data so detail panel updates after AI tagging
   const selectedAsset = useMemo(() => {
     if (!selectedAssetId) return null;
     return assets.find((a) => a.id === selectedAssetId) || null;
   }, [selectedAssetId, assets]);
   const [selectedFileTypes, setSelectedFileTypes] = useState<string[]>([]);
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [selectedImageTypes, setSelectedImageTypes] = useState<string[]>([]);
   const [selectedLicensorIds, setSelectedLicensorIds] = useState<string[]>([]);
   const [selectedPropertyIds, setSelectedPropertyIds] = useState<string[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const lastSelectedIndex = useRef<number | null>(null);
 
   const filteredAssets = useMemo(() => {
     return assets.filter((asset) => {
@@ -56,6 +57,10 @@ const Index = () => {
         const matchesPreviewReady = hasPreviewReady && asset.thumbnail_url != null && asset.status === "pending";
         if (!matchesDbStatus && !matchesPreviewReady) return false;
       }
+      if (selectedImageTypes.length > 0) {
+        const assetTags = (asset.tags || []).map((t) => t.toLowerCase());
+        if (!selectedImageTypes.some((it) => assetTags.includes(it))) return false;
+      }
       if (selectedLicensorIds.length > 0) {
         if (!asset.property?.licensor?.id || !selectedLicensorIds.includes(asset.property.licensor.id)) return false;
       }
@@ -65,7 +70,7 @@ const Index = () => {
 
       return true;
     });
-  }, [assets, searchQuery, selectedFileTypes, selectedStatuses, selectedLicensorIds, selectedPropertyIds]);
+  }, [assets, searchQuery, selectedFileTypes, selectedStatuses, selectedImageTypes, selectedLicensorIds, selectedPropertyIds]);
 
   const toggleInList = (setter: React.Dispatch<React.SetStateAction<string[]>>) => (val: string) =>
     setter((prev) => (prev.includes(val) ? prev.filter((v) => v !== val) : [...prev, val]));
@@ -73,21 +78,39 @@ const Index = () => {
   const clearAll = () => {
     setSelectedFileTypes([]);
     setSelectedStatuses([]);
+    setSelectedImageTypes([]);
     setSelectedLicensorIds([]);
     setSelectedPropertyIds([]);
   };
 
   const handleSelect = useCallback((asset: DbAsset, e: React.MouseEvent) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(asset.id)) {
-        next.delete(asset.id);
-      } else {
-        next.add(asset.id);
-      }
-      return next;
-    });
-  }, []);
+    const currentIndex = filteredAssets.findIndex((a) => a.id === asset.id);
+
+    if (e.shiftKey && lastSelectedIndex.current !== null) {
+      // Shift+click: select range
+      const start = Math.min(lastSelectedIndex.current, currentIndex);
+      const end = Math.max(lastSelectedIndex.current, currentIndex);
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (let i = start; i <= end; i++) {
+          next.add(filteredAssets[i].id);
+        }
+        return next;
+      });
+    } else {
+      // Ctrl/Cmd+click or plain click: toggle individual
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(asset.id)) {
+          next.delete(asset.id);
+        } else {
+          next.add(asset.id);
+        }
+        return next;
+      });
+    }
+    lastSelectedIndex.current = currentIndex;
+  }, [filteredAssets]);
 
   // After AI tagging, switch filter to "tagged" and highlight the asset
   const handleTagSuccess = useCallback((taggedAssetIds: string[]) => {
@@ -95,7 +118,7 @@ const Index = () => {
     if (taggedAssetIds.length === 1) {
       setSelectedAssetId(taggedAssetIds[0]);
     }
-  }, [assets]);
+  }, []);
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -117,6 +140,8 @@ const Index = () => {
           onFileTypeToggle={toggleInList(setSelectedFileTypes)}
           selectedStatuses={selectedStatuses}
           onStatusToggle={toggleInList(setSelectedStatuses)}
+          selectedImageTypes={selectedImageTypes}
+          onImageTypeToggle={toggleInList(setSelectedImageTypes)}
           selectedLicensorIds={selectedLicensorIds}
           onLicensorToggle={toggleInList(setSelectedLicensorIds)}
           selectedPropertyIds={selectedPropertyIds}
