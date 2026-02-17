@@ -135,6 +135,7 @@ const FilterSidebar = ({
             { value: "amazon image", label: "Amazon Image" },
             { value: "professional photography", label: "Photography" },
             { value: "tech pack", label: "Tech Pack" },
+            { value: "packaging", label: "Packaging" },
             { value: "design art", label: "Design Art" },
             { value: "lifestyle", label: "Lifestyle" },
           ].map((t) => (
