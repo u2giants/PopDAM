@@ -16,26 +16,39 @@ export function useAssets() {
   return useQuery({
     queryKey: ["assets"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("assets")
-        .select(`
-          *,
-          asset_characters(
-            character:characters(id, name)
-          ),
-          property:properties(id, name, licensor:licensors(id, name)),
-          product_subtype:product_subtypes(
-            id, name,
-            product_type:product_types(id, name, product_category:product_categories(id, name))
-          )
-        `)
-        .order("ingested_at", { ascending: false })
-        .limit(10000);
+      const selectQuery = `
+        *,
+        asset_characters(
+          character:characters(id, name)
+        ),
+        property:properties(id, name, licensor:licensors(id, name)),
+        product_subtype:product_subtypes(
+          id, name,
+          product_type:product_types(id, name, product_category:product_categories(id, name))
+        )
+      `;
 
-      if (error) throw error;
+      const batchSize = 1000;
+      let allData: any[] = [];
+      let offset = 0;
+
+      while (true) {
+        const { data, error } = await supabase
+          .from("assets")
+          .select(selectQuery)
+          .order("ingested_at", { ascending: false })
+          .range(offset, offset + batchSize - 1);
+
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+
+        allData = allData.concat(data);
+        if (data.length < batchSize) break;
+        offset += batchSize;
+      }
 
       // Flatten characters
-      return (data || []).map((row: any) => ({
+      return allData.map((row: any) => ({
         ...row,
         characters: (row.asset_characters || []).map((ac: any) => ac.character).filter(Boolean),
         asset_characters: undefined,
