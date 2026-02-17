@@ -1,3 +1,4 @@
+import path from "path";
 import { config } from "./config";
 import { registerAgent, heartbeat, ingestAsset, updateAsset } from "./api";
 import { scan, ScannedFile } from "./scanner";
@@ -93,12 +94,24 @@ async function reprocess() {
   let success = 0;
   let failed = 0;
 
-  for (const asset of allAssets) {
+  let skipped = 0;
+
+  for (let i = 0; i < allAssets.length; i++) {
+    const asset = allAssets[i];
     try {
       // Convert UNC path (backslashes) to local mount path (forward slashes)
-      const localPath = asset.file_path
-        .replace(/\\/g, "/")
-        .replace("//edgesynology2/mac", "/mnt/nas/mac");
+      const normalized = asset.file_path.replace(/\\/g, "/");
+
+      // Only process paths from edgesynology2 — skip unknown/legacy UNC prefixes
+      if (!normalized.includes("edgesynology2/mac")) {
+        skipped++;
+        continue;
+      }
+
+      const localPath = normalized.replace(/^\/\/edgesynology2\/mac/, "/mnt/nas/mac");
+
+      // Log every attempt so it doesn't appear to hang
+      console.log(`[Reprocess] [${i + 1}/${allAssets.length}] Processing: ${asset.file_type.toUpperCase()} ${path.basename(asset.file_path)}`);
 
       const thumb = await generateThumbnail(localPath, asset.file_type, asset.id);
       const thumbnailUrl = await uploadThumbnail(thumb.thumbnailPath, asset.id);
@@ -110,16 +123,14 @@ async function reprocess() {
       });
 
       success++;
-      if (success % 50 === 0) {
-        console.log(`[Reprocess] Progress: ${success}/${allAssets.length}`);
-      }
+      console.log(`[Reprocess] ✓ ${thumb.width}x${thumb.height} → ${thumbnailUrl}`);
     } catch (err: any) {
       failed++;
-      console.warn(`[Reprocess] Failed ${asset.id}: ${err.message}`);
+      console.warn(`[Reprocess] ✗ ${asset.id}: ${err.message}`);
     }
   }
 
-  console.log(`[Reprocess] Done. Success: ${success}, Failed: ${failed}`);
+  console.log(`[Reprocess] Done. Success: ${success}, Failed: ${failed}, Skipped: ${skipped}`);
 }
 
 /** Main loop */
