@@ -4,7 +4,7 @@ services:
   tailscale:
     image: tailscale/tailscale:latest
     container_name: dam-tailscale
-    hostname: edgesynology2
+    hostname: PopDAM
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
