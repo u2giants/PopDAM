@@ -38,6 +38,7 @@ const Index = () => {
   const [selectedLicensorIds, setSelectedLicensorIds] = useState<string[]>([]);
   const [selectedPropertyIds, setSelectedPropertyIds] = useState<string[]>([]);
   const [selectedWorkflowStatuses, setSelectedWorkflowStatuses] = useState<string[]>([]);
+  const [selectedLicenseTypes, setSelectedLicenseTypes] = useState<string[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const lastSelectedIndex = useRef<number | null>(null);
 
@@ -73,6 +74,11 @@ const Index = () => {
       if (selectedWorkflowStatuses.length > 0) {
         if (!(asset as any).workflow_status || !selectedWorkflowStatuses.includes((asset as any).workflow_status)) return false;
       }
+      if (selectedLicenseTypes.length > 0) {
+        const isLicensed = (asset as any).is_licensed;
+        const matchesLicense = selectedLicenseTypes.includes(isLicensed ? "licensed" : "generic");
+        if (!matchesLicense) return false;
+      }
 
       return true;
     });
@@ -98,7 +104,7 @@ const Index = () => {
     });
 
     return filtered;
-  }, [assets, searchQuery, selectedFileTypes, selectedStatuses, selectedImageTypes, selectedLicensorIds, selectedPropertyIds, selectedWorkflowStatuses, sortField, sortDir]);
+  }, [assets, searchQuery, selectedFileTypes, selectedStatuses, selectedImageTypes, selectedLicensorIds, selectedPropertyIds, selectedWorkflowStatuses, selectedLicenseTypes, sortField, sortDir]);
 
   const toggleInList = (setter: React.Dispatch<React.SetStateAction<string[]>>) => (val: string) =>
     setter((prev) => (prev.includes(val) ? prev.filter((v) => v !== val) : [...prev, val]));
@@ -110,6 +116,7 @@ const Index = () => {
     setSelectedLicensorIds([]);
     setSelectedPropertyIds([]);
     setSelectedWorkflowStatuses([]);
+    setSelectedLicenseTypes([]);
   };
 
   const handleSelect = useCallback((asset: DbAsset, e: React.MouseEvent) => {
@@ -182,6 +189,8 @@ const Index = () => {
           onPropertyToggle={toggleInList(setSelectedPropertyIds)}
           selectedWorkflowStatuses={selectedWorkflowStatuses}
           onWorkflowStatusToggle={toggleInList(setSelectedWorkflowStatuses)}
+          selectedLicenseTypes={selectedLicenseTypes}
+          onLicenseTypeToggle={toggleInList(setSelectedLicenseTypes)}
           onClearAll={clearAll}
           isOpen={filtersOpen}
         />
