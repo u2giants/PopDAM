@@ -119,9 +119,21 @@ const AssetDetailPanel = ({ asset, onClose, onTagSuccess }: AssetDetailPanelProp
         </DialogContent>
       </Dialog>
 
-      {/* Filename */}
+      {/* Filename + Style Number */}
       <div className="px-4 pb-3">
         <h3 className="text-sm font-semibold text-foreground break-all">{asset.filename}</h3>
+        {asset.design_ref && (
+          <div className="flex items-center gap-1.5 mt-1">
+            <Badge variant="outline" className="text-xs font-mono bg-primary/10 text-primary border-primary/30 px-2 py-0.5">
+              {asset.design_ref}
+            </Badge>
+            {asset.design_style && (
+              <Badge variant="outline" className="text-xs font-mono bg-muted text-muted-foreground px-2 py-0.5">
+                Style {asset.design_style}
+              </Badge>
+            )}
+          </div>
+        )}
       </div>
 
       {/* AI Description */}

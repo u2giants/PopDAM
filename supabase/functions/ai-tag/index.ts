@@ -52,7 +52,9 @@ Deno.serve(async (req) => {
 
     for (const asset of assets || []) {
       try {
-        const prompt = buildPrompt(asset, taxonomy);
+        // Extract style number from filename before AI runs
+        const filenameStyleNumber = extractStyleNumber(asset.filename);
+        const prompt = buildPrompt(asset, taxonomy, filenameStyleNumber);
 
         const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
@@ -113,10 +115,14 @@ Deno.serve(async (req) => {
         if (parsed.asset_type) updates.asset_type = parsed.asset_type;
         if (parsed.is_licensed !== undefined) updates.is_licensed = parsed.is_licensed;
         if (parsed.art_source) updates.art_source = parsed.art_source;
-        if (parsed.design_ref) updates.design_ref = parsed.design_ref;
+        // design_ref: prefer AI-extracted, fall back to filename regex
+        updates.design_ref = parsed.design_ref || filenameStyleNumber || null;
         if (parsed.design_style) updates.design_style = parsed.design_style;
         if (parsed.big_theme) updates.big_theme = parsed.big_theme;
         if (parsed.little_theme) updates.little_theme = parsed.little_theme;
+        // Add style number to tags if found
+        const styleNum = updates.design_ref as string | null;
+        if (styleNum) tagSet.add(`style: ${styleNum.toLowerCase()}`);
 
         // Resolve property
         if (parsed.property_name) {
@@ -208,6 +214,25 @@ CHARACTER IDENTIFICATION — CRITICAL RULES:
 
 Always respond with valid JSON.`;
 
+// ── Style number extraction from filename ─────────────────────
+/**
+ * Extracts style/design reference numbers from filenames.
+ * Patterns like: VSZ26MVSP09, VDC83WBEF04, 0GP25DYMM01
+ * Format: 3 alphanum + 2 digits + 3-4 letters + 2 digits (roughly 11 chars)
+ */
+function extractStyleNumber(filename: string): string | null {
+  // Remove extension
+  const name = filename.replace(/\.[^.]+$/, "");
+  // Pattern: alphanumeric code at start or after separator, 9-12 chars of mixed letters+digits
+  // Matches codes like VSZ26MVSP09, VDC83WBEF04, 0GP25DYMM01
+  const match = name.match(/\b([A-Z0-9]{2,4}\d{2}[A-Z]{2,5}\d{2,3})\b/i);
+  if (match) return match[1].toUpperCase();
+  // Broader: any leading alphanumeric block of 9-12 chars with mixed letters and digits
+  const broad = name.match(/^([A-Z0-9]{9,12})\b/i);
+  if (broad && /\d/.test(broad[1]) && /[A-Z]/i.test(broad[1])) return broad[1].toUpperCase();
+  return null;
+}
+
 // ── Prompt builder ─────────────────────────────────────────────
 function buildPrompt(
   asset: { filename: string; file_path: string; file_type: string },
@@ -218,13 +243,19 @@ function buildPrompt(
     product_categories: { id: string; name: string }[];
     product_types: { id: string; name: string }[];
     product_subtypes: { id: string; name: string }[];
-  }
+  },
+  filenameStyleNumber: string | null
 ): string {
+  const styleHint = filenameStyleNumber
+    ? `\nStyle number detected from filename: "${filenameStyleNumber}". Confirm or override if the image shows a different reference number.\n`
+    : `\nNo style number detected from filename. Look carefully for any style/design reference number visible on the image (e.g. codes like VSZ26MVSP09, VDC83WBEF04) or in the filename itself.\n`;
+
   return `Analyze this design asset.
 
 File: ${asset.filename}
 Path: ${asset.file_path}
 Type: ${asset.file_type}
+${styleHint}
 
 Available Properties (licensed brands): ${taxonomy.properties.map((p) => p.name).join(", ")}
 Available Characters: ${taxonomy.characters.map((c) => c.name).join(", ")}
