@@ -1,4 +1,5 @@
-import { Settings as SettingsIcon, Server, Image, Clock, Sparkles, Shield } from "lucide-react";
+import { useState } from "react";
+import { Settings as SettingsIcon, Server, Image, Clock, Sparkles, Shield, FolderOpen, CheckCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -6,8 +7,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import AppHeader from "@/components/dam/AppHeader";
+import SynologyDriveSetupDialog from "@/components/dam/SynologyDriveSetupDialog";
+import { getSyncRoot, setSyncRoot as clearSyncRoot, isSynologyConfigured } from "@/hooks/usePathDisplay";
 
 const SettingsPage = () => {
+  const [synologyDialogOpen, setSynologyDialogOpen] = useState(false);
+  const [synologyConfigured, setSynologyConfigured] = useState(isSynologyConfigured());
+  const currentRoot = getSyncRoot();
   return (
     <div className="h-screen flex flex-col bg-background">
       <AppHeader />
@@ -48,6 +54,58 @@ const SettingsPage = () => {
               </div>
             </CardContent>
           </Card>
+
+          {/* Synology Drive */}
+          <Card className="bg-card border-border">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <FolderOpen className="h-4 w-4 text-primary" />
+                Synology Drive
+              </CardTitle>
+              <CardDescription>Map server paths to your local Synology Drive folder for easy file access</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {synologyConfigured ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm text-success">
+                    <CheckCircle className="h-4 w-4" />
+                    <span>Configured</span>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Sync Root Path</Label>
+                    <p className="text-sm font-mono text-foreground bg-secondary rounded-md p-2">{currentRoot}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setSynologyDialogOpen(true)}>
+                      Reconfigure
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => {
+                      clearSyncRoot("");
+                      setSynologyConfigured(false);
+                    }}>
+                      Remove
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Set up your local Synology Drive path so asset paths are shown relative to your computer.
+                  </p>
+                  <Button onClick={() => setSynologyDialogOpen(true)} className="gap-2">
+                    <FolderOpen className="h-4 w-4" />
+                    Set Up Synology Drive
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <SynologyDriveSetupDialog
+            open={synologyDialogOpen}
+            onOpenChange={setSynologyDialogOpen}
+            onComplete={() => setSynologyConfigured(true)}
+          />
 
           {/* Ingestion */}
           <Card className="bg-card border-border">

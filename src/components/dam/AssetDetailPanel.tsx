@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { DbAsset } from "@/hooks/useAssets";
-import { X, Copy, FileType, Calendar, HardDrive, Tag, Sparkles, FolderOpen, RefreshCw, CloudCog, ExternalLink } from "lucide-react";
+import { X, Copy, FileType, Calendar, HardDrive, Tag, Sparkles, FolderOpen, RefreshCw, CloudCog } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -134,34 +134,18 @@ const AssetDetailPanel = ({ asset, onClose, onTagSuccess }: AssetDetailPanelProp
         </div>
         <div className="flex gap-2 mt-2">
           <Button variant="outline" size="sm" onClick={copyPath} className="text-xs gap-1.5 flex-1">
-            <Copy className="h-3 w-3" /> Copy
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              // Attempt to open via file:// protocol; falls back to copy
-              const filePath = mappedPath.replace(/\\/g, "/");
-              const fileUrl = filePath.startsWith("/") || filePath.startsWith("~")
-                ? `file://${filePath.replace("~", "")}`
-                : `file:///${filePath}`;
-              window.open(fileUrl, "_blank");
-              toast({ title: "Opening file", description: "If the file didn't open, paste the copied path in File Explorer / Finder." });
-              navigator.clipboard.writeText(mappedPath);
-            }}
-            className="text-xs gap-1.5 flex-1"
-            title="Try to open file in default app"
-          >
-            <ExternalLink className="h-3 w-3" /> Open
+            <Copy className="h-3 w-3" /> Copy Path
           </Button>
         </div>
         <div className="flex gap-2 mt-2">
           <Button variant="outline" size="sm" onClick={cycleHostMode} className="text-xs gap-1.5 flex-1" title="Cycle path display mode">
             <RefreshCw className="h-3 w-3" /> {modeLabel()}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setSynologyDialogOpen(true)} className="text-xs gap-1.5" title="Set up Synology Drive path">
-            <CloudCog className="h-3 w-3" />
-          </Button>
+          {!isSynologyConfigured() && (
+            <Button variant="outline" size="sm" onClick={() => setSynologyDialogOpen(true)} className="text-xs gap-1.5" title="Set up Synology Drive path">
+              <CloudCog className="h-3 w-3" />
+            </Button>
+          )}
         </div>
       </div>
 
