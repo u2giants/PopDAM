@@ -1,11 +1,12 @@
 import { Link, useLocation } from "react-router-dom";
-import { LayoutGrid, Settings, Activity, Database, Wifi, WifiOff } from "lucide-react";
+import { LayoutGrid, Settings, Activity, Database, Download, Wifi, WifiOff } from "lucide-react";
 import { useAgentStatus } from "@/hooks/useAgentStatus";
 
 const navItems = [
   { path: "/", label: "Library", icon: LayoutGrid },
   { path: "/ingestion", label: "Ingestion", icon: Database },
   { path: "/activity", label: "Activity", icon: Activity },
+  { path: "/downloads", label: "Downloads", icon: Download },
   { path: "/settings", label: "Settings", icon: Settings },
 ];
 
