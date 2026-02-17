@@ -297,7 +297,8 @@ Respond with JSON in this exact format:
 }
 
 RULES:
-- tags: 8-20 lowercase keywords. Include licensor, property, each character name, product type, dominant colors, composition style (group shot, single character, allover print, repeat pattern, 3d lenticular, etc.), and any relevant search terms.
+- tags: 8-20 lowercase keywords. Include licensor, property, each character name, product type, dominant colors, composition style (group shot, single character, allover print, repeat pattern, 3d lenticular, etc.), mood, and any other relevant search terms.
+- HIERARCHICAL TAGGING: Always include broader category tags alongside specific ones. If the product is a "coir doormat", also tag "doormat" and "floor covering". If it's a "twin comforter", also tag "comforter" and "bedding". If it's a "standard pillowcase", also tag "pillowcase" and "bedding". Think: specific item → general item type → product family. This helps designers find assets whether they search broadly or specifically.
 - scene_description: Describe ONLY what is depicted in the artwork/design — character poses, pattern layout, composition. NOT the physical product or photograph.
 - Only use property_name/character_names/product_subtype_name that EXACTLY match the available options. If unsure, use null.
 - CHARACTER IDENTIFICATION IS CRITICAL: Identify each character by their VISUAL features (costume colors, accessories, hair, symbols). Do NOT assume a character is present — confirm by sight. If you cannot visually confirm a character's identity, omit them from character_names entirely.
