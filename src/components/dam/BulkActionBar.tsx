@@ -6,9 +6,10 @@ interface BulkActionBarProps {
   selectedIds: string[];
   onClearSelection: () => void;
   totalCount: number;
+  onTagSuccess?: (taggedAssetIds: string[]) => void;
 }
 
-const BulkActionBar = ({ selectedIds, onClearSelection, totalCount }: BulkActionBarProps) => {
+const BulkActionBar = ({ selectedIds, onClearSelection, totalCount, onTagSuccess }: BulkActionBarProps) => {
   const aiTag = useAiTag();
 
   if (selectedIds.length === 0) return null;
@@ -26,7 +27,7 @@ const BulkActionBar = ({ selectedIds, onClearSelection, totalCount }: BulkAction
       <div className="flex items-center gap-2">
         <Button
           size="sm"
-          onClick={() => aiTag.mutate(selectedIds)}
+          onClick={() => aiTag.mutate(selectedIds, { onSuccess: () => onTagSuccess?.(selectedIds) })}
           disabled={aiTag.isPending}
           className="gap-2"
         >

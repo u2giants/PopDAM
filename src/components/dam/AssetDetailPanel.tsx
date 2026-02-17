@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { DbAsset } from "@/hooks/useAssets";
-import { X, Copy, FileType, Calendar, HardDrive, Tag, Sparkles, FolderOpen, RefreshCw, CloudCog } from "lucide-react";
+import { X, Copy, FileType, Calendar, HardDrive, Tag, Sparkles, FolderOpen, RefreshCw, CloudCog, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -12,6 +12,7 @@ import SynologyDriveSetupDialog from "./SynologyDriveSetupDialog";
 interface AssetDetailPanelProps {
   asset: DbAsset | null;
   onClose: () => void;
+  onTagSuccess?: (taggedAssetIds: string[]) => void;
 }
 
 const formatFileSize = (bytes: number): string => {
@@ -36,7 +37,7 @@ const placeholderColors = [
   "from-amber-900/40 to-amber-800/20",
 ];
 
-const AssetDetailPanel = ({ asset, onClose }: AssetDetailPanelProps) => {
+const AssetDetailPanel = ({ asset, onClose, onTagSuccess }: AssetDetailPanelProps) => {
   const { toast } = useToast();
   const { hostMode, cycleHostMode, displayPath, modeLabel } = usePathDisplay();
   const [synologyDialogOpen, setSynologyDialogOpen] = useState(false);
@@ -94,9 +95,28 @@ const AssetDetailPanel = ({ asset, onClose }: AssetDetailPanelProps) => {
 
       <Separator />
 
+      {/* Tags */}
+      {asset.tags && asset.tags.length > 0 && (
+        <div className="px-4 pb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Tag className="h-3 w-3 text-muted-foreground" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Tags</span>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {asset.tags.map((tag, i) => (
+              <Badge key={i} variant="secondary" className="text-[10px] bg-tag text-tag-foreground border-0 px-1.5 py-0">
+                {tag}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <Separator />
+
       {/* Operations */}
       <div className="p-4">
-        <AssetOperationsPanel asset={asset} />
+        <AssetOperationsPanel asset={asset} onTagSuccess={onTagSuccess} />
       </div>
 
       <Separator />
@@ -116,6 +136,26 @@ const AssetDetailPanel = ({ asset, onClose }: AssetDetailPanelProps) => {
           <Button variant="outline" size="sm" onClick={copyPath} className="text-xs gap-1.5 flex-1">
             <Copy className="h-3 w-3" /> Copy
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              // Attempt to open via file:// protocol; falls back to copy
+              const filePath = mappedPath.replace(/\\/g, "/");
+              const fileUrl = filePath.startsWith("/") || filePath.startsWith("~")
+                ? `file://${filePath.replace("~", "")}`
+                : `file:///${filePath}`;
+              window.open(fileUrl, "_blank");
+              toast({ title: "Opening file", description: "If the file didn't open, paste the copied path in File Explorer / Finder." });
+              navigator.clipboard.writeText(mappedPath);
+            }}
+            className="text-xs gap-1.5 flex-1"
+            title="Try to open file in default app"
+          >
+            <ExternalLink className="h-3 w-3" /> Open
+          </Button>
+        </div>
+        <div className="flex gap-2 mt-2">
           <Button variant="outline" size="sm" onClick={cycleHostMode} className="text-xs gap-1.5 flex-1" title="Cycle path display mode">
             <RefreshCw className="h-3 w-3" /> {modeLabel()}
           </Button>

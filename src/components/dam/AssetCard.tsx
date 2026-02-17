@@ -54,6 +54,7 @@ const AssetCard = ({ asset, onClick, isSelected, onSelect, selectionMode }: Asse
     ...(asset.property ? [{ label: asset.property.name, type: "property" }] : []),
     ...(asset.characters ?? []).map((c) => ({ label: c.name, type: "character" })),
     ...(asset.product_subtype ? [{ label: asset.product_subtype.name, type: "product" }] : []),
+    ...(asset.tags ?? []).map((t) => ({ label: t, type: "tag" })),
   ];
 
   const handleClick = (e: React.MouseEvent) => {

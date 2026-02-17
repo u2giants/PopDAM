@@ -10,9 +10,10 @@ import { Sparkles, Save, Tag, Pencil, X, Check, Loader2 } from "lucide-react";
 
 interface AssetOperationsPanelProps {
   asset: DbAsset;
+  onTagSuccess?: (taggedAssetIds: string[]) => void;
 }
 
-const AssetOperationsPanel = ({ asset }: AssetOperationsPanelProps) => {
+const AssetOperationsPanel = ({ asset, onTagSuccess }: AssetOperationsPanelProps) => {
   const updateAsset = useUpdateAsset();
   const updateChars = useUpdateAssetCharacters();
   const aiTag = useAiTag();
@@ -107,7 +108,7 @@ const AssetOperationsPanel = ({ asset }: AssetOperationsPanelProps) => {
         </div>
         <Button
           size="sm"
-          onClick={() => aiTag.mutate([asset.id])}
+          onClick={() => aiTag.mutate([asset.id], { onSuccess: () => onTagSuccess?.([asset.id]) })}
           disabled={aiTag.isPending}
           className="w-full gap-2"
         >
