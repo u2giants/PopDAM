@@ -94,6 +94,7 @@ const FilterSidebar = ({
         <div className="space-y-2">
           {[
             { value: "tagged", label: "Tagged", color: "bg-success" },
+            { value: "preview_ready", label: "Preview Ready", color: "bg-primary" },
             { value: "processing", label: "Processing", color: "bg-primary" },
             { value: "pending", label: "Pending", color: "bg-muted-foreground" },
             { value: "error", label: "Error", color: "bg-destructive" },

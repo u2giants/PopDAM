@@ -31,7 +31,13 @@ const Index = () => {
       }
 
       if (selectedFileTypes.length > 0 && !selectedFileTypes.includes(asset.file_type)) return false;
-      if (selectedStatuses.length > 0 && !selectedStatuses.includes(asset.status)) return false;
+      if (selectedStatuses.length > 0) {
+        const hasPreviewReady = selectedStatuses.includes("preview_ready");
+        const dbStatuses = selectedStatuses.filter((s) => s !== "preview_ready");
+        const matchesDbStatus = dbStatuses.length > 0 && dbStatuses.includes(asset.status);
+        const matchesPreviewReady = hasPreviewReady && asset.thumbnail_url != null && asset.status === "pending";
+        if (!matchesDbStatus && !matchesPreviewReady) return false;
+      }
       if (selectedLicensorIds.length > 0) {
         if (!asset.property?.licensor?.id || !selectedLicensorIds.includes(asset.property.licensor.id)) return false;
       }
