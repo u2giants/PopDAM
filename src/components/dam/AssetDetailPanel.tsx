@@ -1,11 +1,13 @@
+import { useState } from "react";
 import { DbAsset } from "@/hooks/useAssets";
-import { X, Copy, FileType, Calendar, HardDrive, Tag, Sparkles, FolderOpen, RefreshCw } from "lucide-react";
+import { X, Copy, FileType, Calendar, HardDrive, Tag, Sparkles, FolderOpen, RefreshCw, CloudCog } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { usePathDisplay } from "@/hooks/usePathDisplay";
+import { usePathDisplay, isSynologyConfigured } from "@/hooks/usePathDisplay";
 import AssetOperationsPanel from "./AssetOperationsPanel";
+import SynologyDriveSetupDialog from "./SynologyDriveSetupDialog";
 
 interface AssetDetailPanelProps {
   asset: DbAsset | null;
@@ -36,7 +38,8 @@ const placeholderColors = [
 
 const AssetDetailPanel = ({ asset, onClose }: AssetDetailPanelProps) => {
   const { toast } = useToast();
-  const { hostMode, toggleHostMode, displayPath } = usePathDisplay();
+  const { hostMode, cycleHostMode, displayPath, modeLabel } = usePathDisplay();
+  const [synologyDialogOpen, setSynologyDialogOpen] = useState(false);
 
   if (!asset) return null;
 
@@ -102,20 +105,31 @@ const AssetDetailPanel = ({ asset, onClose }: AssetDetailPanelProps) => {
       <div className="p-4">
         <div className="flex items-center gap-2 mb-2">
           <FolderOpen className="h-3 w-3 text-muted-foreground" />
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Server Path</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {hostMode.startsWith("synology") ? "Local Path" : "Server Path"}
+          </span>
         </div>
         <div className="bg-secondary rounded-md p-2 font-mono text-xs text-secondary-foreground break-all leading-relaxed">
           {mappedPath}
         </div>
         <div className="flex gap-2 mt-2">
           <Button variant="outline" size="sm" onClick={copyPath} className="text-xs gap-1.5 flex-1">
-            <Copy className="h-3 w-3" /> Copy Path
+            <Copy className="h-3 w-3" /> Copy
           </Button>
-          <Button variant="outline" size="sm" onClick={toggleHostMode} className="text-xs gap-1.5 flex-1" title={`Switch to ${hostMode === "hostname" ? "IP address" : "hostname"}`}>
-            <RefreshCw className="h-3 w-3" /> {hostMode === "hostname" ? "Use IP" : "Use Name"}
+          <Button variant="outline" size="sm" onClick={cycleHostMode} className="text-xs gap-1.5 flex-1" title="Cycle path display mode">
+            <RefreshCw className="h-3 w-3" /> {modeLabel()}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setSynologyDialogOpen(true)} className="text-xs gap-1.5" title="Set up Synology Drive path">
+            <CloudCog className="h-3 w-3" />
           </Button>
         </div>
       </div>
+
+      <SynologyDriveSetupDialog
+        open={synologyDialogOpen}
+        onOpenChange={setSynologyDialogOpen}
+        onComplete={() => {}}
+      />
 
       <Separator />
 
