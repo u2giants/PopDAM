@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useAssets, DbAsset } from "@/hooks/useAssets";
+import { useAssetCount } from "@/hooks/useAssetCount";
 import AppHeader from "@/components/dam/AppHeader";
 import TopBar from "@/components/dam/TopBar";
 import FilterSidebar from "@/components/dam/FilterSidebar";
@@ -8,6 +9,7 @@ import AssetDetailPanel from "@/components/dam/AssetDetailPanel";
 
 const Index = () => {
   const { data: assets = [], isLoading } = useAssets();
+  const { data: totalAssetCount } = useAssetCount();
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [filtersOpen, setFiltersOpen] = useState(true);
@@ -59,7 +61,7 @@ const Index = () => {
         onSearchChange={setSearchQuery}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
-        totalAssets={assets.length}
+        totalAssets={totalAssetCount ?? assets.length}
         filteredCount={filteredAssets.length}
         onToggleFilters={() => setFiltersOpen(!filtersOpen)}
       />

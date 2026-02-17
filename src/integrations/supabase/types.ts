@@ -471,6 +471,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_asset_count: { Args: never; Returns: number }
       reset_stale_jobs: {
         Args: { p_timeout_minutes?: number }
         Returns: number
