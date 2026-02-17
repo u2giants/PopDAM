@@ -1,10 +1,11 @@
 import { DbAsset } from "@/hooks/useAssets";
-import { X, ExternalLink, Copy, FileType, Calendar, HardDrive, Layers, Tag, Sparkles, FolderOpen, RefreshCw } from "lucide-react";
+import { X, Copy, FileType, Calendar, HardDrive, Tag, Sparkles, FolderOpen, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { usePathDisplay } from "@/hooks/usePathDisplay";
+import AssetOperationsPanel from "./AssetOperationsPanel";
 
 interface AssetDetailPanelProps {
   asset: DbAsset | null;
@@ -23,13 +24,6 @@ const formatDate = (dateStr: string): string => {
     month: "short",
     day: "numeric",
   });
-};
-
-const categoryColors: Record<string, string> = {
-  licensor: "bg-info/20 text-info",
-  property: "bg-primary/20 text-primary",
-  character: "bg-accent/20 text-accent-foreground",
-  product: "bg-success/20 text-success",
 };
 
 const placeholderColors = [
@@ -54,21 +48,6 @@ const AssetDetailPanel = ({ asset, onClose }: AssetDetailPanelProps) => {
   };
 
   const colorPlaceholder = asset.color_placeholder || placeholderColors[asset.id.charCodeAt(0) % placeholderColors.length];
-
-  // Build tag list from relations
-  const tags: { label: string; category: string }[] = [];
-  if (asset.property?.licensor) tags.push({ label: asset.property.licensor.name, category: "licensor" });
-  if (asset.property) tags.push({ label: asset.property.name, category: "property" });
-  asset.characters.forEach((c) => tags.push({ label: c.name, category: "character" }));
-  if (asset.product_subtype) {
-    if (asset.product_subtype.product_type?.product_category) {
-      tags.push({ label: asset.product_subtype.product_type.product_category.name, category: "product" });
-    }
-    if (asset.product_subtype.product_type) {
-      tags.push({ label: asset.product_subtype.product_type.name, category: "product" });
-    }
-    tags.push({ label: asset.product_subtype.name, category: "product" });
-  }
 
   return (
     <div className="w-96 border-l border-border bg-surface-overlay h-full overflow-y-auto scrollbar-thin animate-slide-in-right">
@@ -112,6 +91,13 @@ const AssetDetailPanel = ({ asset, onClose }: AssetDetailPanelProps) => {
 
       <Separator />
 
+      {/* Operations */}
+      <div className="p-4">
+        <AssetOperationsPanel asset={asset} />
+      </div>
+
+      <Separator />
+
       {/* File Path */}
       <div className="p-4">
         <div className="flex items-center gap-2 mb-2">
@@ -123,40 +109,15 @@ const AssetDetailPanel = ({ asset, onClose }: AssetDetailPanelProps) => {
         </div>
         <div className="flex gap-2 mt-2">
           <Button variant="outline" size="sm" onClick={copyPath} className="text-xs gap-1.5 flex-1">
-            <Copy className="h-3 w-3" />
-            Copy Path
+            <Copy className="h-3 w-3" /> Copy Path
           </Button>
           <Button variant="outline" size="sm" onClick={toggleHostMode} className="text-xs gap-1.5 flex-1" title={`Switch to ${hostMode === "hostname" ? "IP address" : "hostname"}`}>
-            <RefreshCw className="h-3 w-3" />
-            {hostMode === "hostname" ? "Use IP" : "Use Name"}
+            <RefreshCw className="h-3 w-3" /> {hostMode === "hostname" ? "Use IP" : "Use Name"}
           </Button>
         </div>
       </div>
 
       <Separator />
-
-      {/* Tags */}
-      {tags.length > 0 && (
-        <>
-          <div className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Tag className="h-3 w-3 text-muted-foreground" />
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Tags</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {tags.map((tag, i) => (
-                <Badge
-                  key={i}
-                  className={`text-xs border-0 ${categoryColors[tag.category] || "bg-tag text-tag-foreground"}`}
-                >
-                  {tag.label}
-                </Badge>
-              ))}
-            </div>
-          </div>
-          <Separator />
-        </>
-      )}
 
       {/* Metadata */}
       <div className="p-4 space-y-3">
@@ -169,10 +130,6 @@ const AssetDetailPanel = ({ asset, onClose }: AssetDetailPanelProps) => {
           ["Size", formatFileSize(asset.file_size)],
           ["Dimensions", `${asset.width} × ${asset.height} px`],
           ["Artboards", String(asset.artboards)],
-          ...(asset.is_licensed ? [["Licensed", "Yes"]] : []),
-          ...(asset.asset_type ? [["Asset Type", asset.asset_type === "art_piece" ? "Art Piece" : "Product"]] : []),
-          ...(asset.design_ref ? [["Design Ref", asset.design_ref]] : []),
-          ...(asset.design_style ? [["Design Style", asset.design_style]] : []),
         ].map(([label, value]) => (
           <div key={label} className="flex justify-between">
             <span className="text-xs text-muted-foreground">{label}</span>

@@ -53,6 +53,7 @@ export async function ingestAsset(asset: {
   artboards: number;
   color_placeholder?: string;
   thumbnail_url?: string;
+  modified_at?: string;
 }) {
   return post("ingest", asset);
 }

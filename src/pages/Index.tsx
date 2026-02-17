@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useAssets, DbAsset } from "@/hooks/useAssets";
 import { useAssetCount } from "@/hooks/useAssetCount";
 import { useQueryClient } from "@tanstack/react-query";
@@ -7,6 +7,7 @@ import TopBar from "@/components/dam/TopBar";
 import FilterSidebar from "@/components/dam/FilterSidebar";
 import AssetGrid from "@/components/dam/AssetGrid";
 import AssetDetailPanel from "@/components/dam/AssetDetailPanel";
+import BulkActionBar from "@/components/dam/BulkActionBar";
 
 const Index = () => {
   const queryClient = useQueryClient();
@@ -26,6 +27,7 @@ const Index = () => {
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [selectedLicensorIds, setSelectedLicensorIds] = useState<string[]>([]);
   const [selectedPropertyIds, setSelectedPropertyIds] = useState<string[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const filteredAssets = useMemo(() => {
     return assets.filter((asset) => {
@@ -67,6 +69,18 @@ const Index = () => {
     setSelectedPropertyIds([]);
   };
 
+  const handleSelect = useCallback((asset: DbAsset, e: React.MouseEvent) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(asset.id)) {
+        next.delete(asset.id);
+      } else {
+        next.add(asset.id);
+      }
+      return next;
+    });
+  }, []);
+
   return (
     <div className="h-screen flex flex-col bg-background">
       <AppHeader />
@@ -94,7 +108,21 @@ const Index = () => {
           onClearAll={clearAll}
           isOpen={filtersOpen}
         />
-        <AssetGrid assets={filteredAssets} onAssetClick={setSelectedAsset} isLoading={isLoading} />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <AssetGrid
+            assets={filteredAssets}
+            onAssetClick={setSelectedAsset}
+            isLoading={isLoading}
+            selectedIds={selectedIds}
+            onSelect={handleSelect}
+            selectionMode={selectedIds.size > 0}
+          />
+          <BulkActionBar
+            selectedIds={Array.from(selectedIds)}
+            onClearSelection={() => setSelectedIds(new Set())}
+            totalCount={filteredAssets.length}
+          />
+        </div>
         <AssetDetailPanel asset={selectedAsset} onClose={() => setSelectedAsset(null)} />
       </div>
     </div>
