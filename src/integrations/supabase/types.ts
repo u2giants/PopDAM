@@ -98,7 +98,9 @@ export type Database = {
           modified_at: string
           product_subtype_id: string | null
           property_id: string | null
+          scene_description: string | null
           status: Database["public"]["Enums"]["asset_status"]
+          tags: string[] | null
           thumbnail_url: string | null
           width: number
         }
@@ -125,7 +127,9 @@ export type Database = {
           modified_at?: string
           product_subtype_id?: string | null
           property_id?: string | null
+          scene_description?: string | null
           status?: Database["public"]["Enums"]["asset_status"]
+          tags?: string[] | null
           thumbnail_url?: string | null
           width?: number
         }
@@ -152,7 +156,9 @@ export type Database = {
           modified_at?: string
           product_subtype_id?: string | null
           property_id?: string | null
+          scene_description?: string | null
           status?: Database["public"]["Enums"]["asset_status"]
+          tags?: string[] | null
           thumbnail_url?: string | null
           width?: number
         }
