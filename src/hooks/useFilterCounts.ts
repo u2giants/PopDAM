@@ -5,6 +5,7 @@ export interface FilterCounts {
   file_type: Record<string, number>;
   workflow_status: Record<string, number>;
   image_type: Record<string, number>;
+  is_licensed: Record<string, number>;
 }
 
 export function useFilterCounts() {
@@ -17,6 +18,7 @@ export function useFilterCounts() {
         file_type: {},
         workflow_status: {},
         image_type: {},
+        is_licensed: {},
       };
     },
     refetchInterval: 30000,

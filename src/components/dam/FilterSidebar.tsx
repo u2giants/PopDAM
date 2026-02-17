@@ -21,6 +21,8 @@ interface FilterSidebarProps {
   onPropertyToggle: (id: string) => void;
   selectedWorkflowStatuses?: string[];
   onWorkflowStatusToggle?: (status: string) => void;
+  selectedLicenseTypes: string[];
+  onLicenseTypeToggle: (type: string) => void;
   onClearAll: () => void;
   isOpen: boolean;
 }
@@ -38,6 +40,8 @@ const FilterSidebar = ({
   onPropertyToggle,
   selectedWorkflowStatuses = [],
   onWorkflowStatusToggle,
+  selectedLicenseTypes,
+  onLicenseTypeToggle,
   onClearAll,
   isOpen,
 }: FilterSidebarProps) => {
@@ -60,7 +64,7 @@ const FilterSidebar = ({
   };
 
   const totalSelected =
-    selectedFileTypes.length + selectedStatuses.length + selectedImageTypes.length + selectedLicensorIds.length + selectedPropertyIds.length + selectedWorkflowStatuses.length;
+    selectedFileTypes.length + selectedStatuses.length + selectedImageTypes.length + selectedLicensorIds.length + selectedPropertyIds.length + selectedWorkflowStatuses.length + selectedLicenseTypes.length;
 
   return (
     <div className="w-64 border-r border-border bg-surface-overlay h-full overflow-y-auto scrollbar-thin animate-slide-in-right">
@@ -160,6 +164,33 @@ const FilterSidebar = ({
           </div>
         </div>
       )}
+
+      {/* License Type */}
+      <div className="p-4 border-b border-border">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-sm">⚖️</span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">License</span>
+        </div>
+        <div className="space-y-2">
+          {[
+            { value: "licensed", label: "Licensed" },
+            { value: "generic", label: "Generic" },
+          ].map((t) => (
+            <label key={t.value} className="flex items-center gap-2 cursor-pointer group">
+              <Checkbox
+                checked={selectedLicenseTypes.includes(t.value)}
+                onCheckedChange={() => onLicenseTypeToggle(t.value)}
+              />
+              <span className="text-sm text-secondary-foreground group-hover:text-foreground transition-colors flex-1">
+                {t.label}
+              </span>
+              <span className="text-[10px] font-mono text-muted-foreground tabular-nums">
+                {filterCounts?.is_licensed?.[t.value] ?? 0}
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
 
       {/* Image Type */}
       <div className="p-4 border-b border-border">
