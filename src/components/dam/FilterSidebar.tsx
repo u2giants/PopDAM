@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLicensors, useProperties } from "@/hooks/useAssets";
 import { useStatusCounts } from "@/hooks/useStatusCounts";
+import { useFilterCounts } from "@/hooks/useFilterCounts";
 
 interface FilterSidebarProps {
   selectedFileTypes: string[];
@@ -43,6 +44,7 @@ const FilterSidebar = ({
   const { data: licensors = [] } = useLicensors();
   const { data: properties = [] } = useProperties();
   const { data: statusCounts } = useStatusCounts();
+  const { data: filterCounts } = useFilterCounts();
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(["fileType", "status", "licensors", "properties"])
   );
@@ -87,9 +89,9 @@ const FilterSidebar = ({
               <span className="text-sm text-secondary-foreground group-hover:text-foreground transition-colors">
                 .{type}
               </span>
-              <Badge variant="outline" className="ml-auto text-[10px] font-mono">
-                {type === "psd" ? "Photoshop" : "Illustrator"}
-              </Badge>
+              <span className="text-[10px] font-mono text-muted-foreground tabular-nums ml-auto">
+                {filterCounts?.file_type?.[type] ?? 0}
+              </span>
             </label>
           ))}
         </div>
@@ -147,8 +149,11 @@ const FilterSidebar = ({
                   onCheckedChange={() => onWorkflowStatusToggle(s.value)}
                 />
                 <span className={`w-2 h-2 rounded-full ${s.color}`} />
-                <span className="text-sm text-secondary-foreground group-hover:text-foreground transition-colors">
+              <span className="text-sm text-secondary-foreground group-hover:text-foreground transition-colors flex-1">
                   {s.label}
+                </span>
+                <span className="text-[10px] font-mono text-muted-foreground tabular-nums">
+                  {filterCounts?.workflow_status?.[s.value] ?? 0}
                 </span>
               </label>
             ))}
@@ -176,8 +181,11 @@ const FilterSidebar = ({
                 checked={selectedImageTypes.includes(t.value)}
                 onCheckedChange={() => onImageTypeToggle(t.value)}
               />
-              <span className="text-sm text-secondary-foreground group-hover:text-foreground transition-colors">
+              <span className="text-sm text-secondary-foreground group-hover:text-foreground transition-colors flex-1">
                 {t.label}
+              </span>
+              <span className="text-[10px] font-mono text-muted-foreground tabular-nums">
+                {filterCounts?.image_type?.[t.value] ?? 0}
               </span>
             </label>
           ))}
