@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import AppHeader from "@/components/dam/AppHeader";
 import SynologyDriveSetupDialog from "@/components/dam/SynologyDriveSetupDialog";
+import InviteManager from "@/components/dam/InviteManager";
 import { getSyncRoot, setSyncRoot as clearSyncRoot, isSynologyConfigured } from "@/hooks/usePathDisplay";
 
 const SettingsPage = () => {
@@ -226,6 +227,9 @@ const SettingsPage = () => {
               </div>
             </CardContent>
           </Card>
+
+          {/* Invitations (admin only) */}
+          <InviteManager />
 
           <div className="pb-8">
             <Button className="w-full">Save Settings</Button>
