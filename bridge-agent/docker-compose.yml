@@ -30,6 +30,7 @@ services:
       - .env
     volumes:
       # Mount the NAS shared folder — Synology 'mac' share
+      # For --normalize-tiffs, change :ro to :rw
       - /volume1/mac:/mnt/nas/mac:ro
       # Local data directory for scan state & generated thumbnails
       - agent-data:/app/data

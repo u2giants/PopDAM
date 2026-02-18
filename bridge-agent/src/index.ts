@@ -6,6 +6,7 @@ import { scan, ScannedFile } from "./scanner";
 import { generateThumbnail, readThumbnailBase64 } from "./thumbnail";
 import { uploadToSpaces } from "./s3";
 import { flushStats } from "./transferStats";
+import { runNormalizer } from "./tiff-normalizer";
 
 let agentId: string;
 
@@ -269,6 +270,15 @@ async function backfillDates() {
 /** Main loop */
 async function main() {
   // Check for CLI modes
+  if (process.argv.includes("--normalize-tiffs")) {
+    const folderIdx = process.argv.indexOf("--folder");
+    const folder = folderIdx !== -1 ? process.argv[folderIdx + 1] : null;
+    const dryRun = process.argv.includes("--dry-run");
+    const roots = folder ? [folder] : config.scanRoots;
+    await runNormalizer({ roots, dryRun });
+    process.exit(0);
+  }
+
   if (process.argv.includes("--backfill-dates")) {
     await backfillDates();
     process.exit(0);
