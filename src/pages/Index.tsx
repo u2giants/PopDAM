@@ -49,6 +49,7 @@ const Index = () => {
         const matchesSearch =
           asset.filename.toLowerCase().includes(q) ||
           (asset.ai_description || "").toLowerCase().includes(q) ||
+          (asset.file_path || "").toLowerCase().includes(q) ||
           asset.characters.some((c) => c.name.toLowerCase().includes(q));
         if (!matchesSearch) return false;
       }
@@ -158,6 +159,12 @@ const Index = () => {
     setSortDir(dir);
   }, []);
 
+  const activeFilterCount = useMemo(() => {
+    return selectedFileTypes.length + selectedStatuses.length + selectedImageTypes.length +
+      selectedLicensorIds.length + selectedPropertyIds.length + selectedWorkflowStatuses.length +
+      selectedLicenseTypes.length;
+  }, [selectedFileTypes, selectedStatuses, selectedImageTypes, selectedLicensorIds, selectedPropertyIds, selectedWorkflowStatuses, selectedLicenseTypes]);
+
   return (
     <div className="h-screen flex flex-col bg-background">
       <AppHeader />
@@ -174,6 +181,8 @@ const Index = () => {
         sortField={sortField}
         sortDir={sortDir}
         onSortChange={handleSortChange}
+        activeFilterCount={activeFilterCount}
+        onClearAllFilters={clearAll}
       />
       <div className="flex-1 flex overflow-hidden">
         <FilterSidebar

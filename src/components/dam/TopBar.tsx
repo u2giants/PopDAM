@@ -1,4 +1,4 @@
-import { Search, SlidersHorizontal, LayoutGrid, List, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Search, SlidersHorizontal, LayoutGrid, List, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +34,8 @@ interface TopBarProps {
   sortField: SortField;
   sortDir: SortDir;
   onSortChange: (field: SortField, dir: SortDir) => void;
+  activeFilterCount?: number;
+  onClearAllFilters?: () => void;
 }
 
 const TopBar = ({
@@ -49,6 +51,8 @@ const TopBar = ({
   sortField,
   sortDir,
   onSortChange,
+  activeFilterCount = 0,
+  onClearAllFilters,
 }: TopBarProps) => {
   return (
     <div className="flex items-center gap-3 px-6 py-3 border-b border-border bg-card">
@@ -65,7 +69,19 @@ const TopBar = ({
       <Button variant="outline" size="sm" onClick={onToggleFilters} className="gap-2">
         <SlidersHorizontal className="h-4 w-4" />
         Filters
+        {activeFilterCount > 0 && (
+          <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center text-xs rounded-full">
+            {activeFilterCount}
+          </Badge>
+        )}
       </Button>
+
+      {activeFilterCount > 0 && onClearAllFilters && (
+        <Button variant="ghost" size="sm" onClick={onClearAllFilters} className="gap-1 text-muted-foreground hover:text-foreground">
+          <X className="h-3 w-3" />
+          Clear filters
+        </Button>
+      )}
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
