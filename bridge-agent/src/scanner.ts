@@ -144,9 +144,6 @@ export async function scan(): Promise<ScannedFile[]> {
         // Skip files older than minimum date
         if (stat.mtime < minDate) continue;
 
-        // Skip files not modified since last scan (unless first run)
-        if (stat.mtime <= sinceDate && hashToPath.size > 0) continue;
-
         // Compute quick hash for dedup
         const hash = await quickHash(filePath);
         const uncPath = toUncPath(filePath);
