@@ -23,6 +23,8 @@ const AgentCard = ({ agent }: { agent: AgentStatus }) => {
   const isScanning = scanProgress?.status === "scanning" || scanProgress?.status === "processing";
   const scanRequested = agent.metadata?.scan_requested;
   const hasScanCapability = !!agent.metadata?.scan_roots;
+  const ingestion = agent.metadata?.ingestion_progress;
+  const isIngesting = ingestion && ingestion.total > 0 && ingestion.done < ingestion.total;
   const isRenderer = !hasScanCapability;
   const { data: renderStats } = useRenderStats(isRenderer ? agent.agent_name : undefined);
 
@@ -176,8 +178,26 @@ const AgentCard = ({ agent }: { agent: AgentStatus }) => {
                   {" · "}
                   {scanProgress.scanned_count.toLocaleString()} files checked
                   {scanProgress.new_count > 0
-                    ? ` · ${scanProgress.new_count} new found`
+                    ? ` · ${scanProgress.new_count.toLocaleString()} new found`
                     : " · no new files"}
+                </div>
+              )}
+
+              {/* Ingestion Progress */}
+              {isIngesting && ingestion && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                    <span className="font-medium text-foreground">Ingesting files...</span>
+                    <span className="ml-auto text-[10px] font-mono text-muted-foreground">
+                      {ingestion.done.toLocaleString()} / {ingestion.total.toLocaleString()}
+                    </span>
+                  </div>
+                  <Progress value={(ingestion.done / ingestion.total) * 100} className="h-1.5" />
+                  <div className="flex justify-between text-[10px] text-muted-foreground">
+                    <span>Processing thumbnails & uploading</span>
+                    <span>{Math.round((ingestion.done / ingestion.total) * 100)}%</span>
+                  </div>
                 </div>
               )}
             </div>
