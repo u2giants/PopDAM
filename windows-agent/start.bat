@@ -21,6 +21,19 @@ if not exist ".env" (
     )
 )
 
+:: Mount NAS share if not already accessible
+if not exist "\\edgesynology2\mac" (
+    echo Mounting NAS share...
+    net use \\edgesynology2\mac /user:popdam "D@Mp0p123" /persistent:no >nul 2>&1
+    if errorlevel 1 (
+        echo [WARN] Could not mount NAS share. Check credentials or Tailscale.
+    ) else (
+        echo [OK] NAS share mounted
+    )
+) else (
+    echo [OK] NAS share already accessible
+)
+
 echo Starting PopDAM Render Agent...
 node dist/index.js
 pause
