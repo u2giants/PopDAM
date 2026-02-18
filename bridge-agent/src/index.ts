@@ -1,7 +1,7 @@
 import path from "path";
 import fs from "fs/promises";
 import { config } from "./config";
-import { registerAgent, heartbeat, ingestAsset, updateAsset, queueRender } from "./api";
+import { registerAgent, heartbeat, ingestAsset, updateAsset, queueRender, checkScanRequest, reportScanProgress } from "./api";
 import { scan, ScannedFile } from "./scanner";
 import { generateThumbnail, readThumbnailBase64 } from "./thumbnail";
 import { uploadToSpaces } from "./s3";
@@ -305,11 +305,35 @@ async function main() {
     }
   }, 5 * 60 * 1000);
 
+  // Poll for manual scan requests every 15 seconds
+  let scanRunning = false;
+  setInterval(async () => {
+    if (scanRunning) return;
+    try {
+      const { scan_requested } = await checkScanRequest();
+      if (scan_requested) {
+        console.log("[Agent] Manual scan requested from UI!");
+        scanRunning = true;
+        await runScanCycle();
+        scanRunning = false;
+      }
+    } catch (err: any) {
+      console.warn(`[Agent] Scan request check failed: ${err.message}`);
+    }
+  }, 15_000);
+
   // Initial scan
+  scanRunning = true;
   await runScanCycle();
+  scanRunning = false;
 
   // Scheduled scans
-  setInterval(runScanCycle, config.scanIntervalMinutes * 60 * 1000);
+  setInterval(async () => {
+    if (scanRunning) return;
+    scanRunning = true;
+    await runScanCycle();
+    scanRunning = false;
+  }, config.scanIntervalMinutes * 60 * 1000);
   console.log(`[Agent] Scheduled scan every ${config.scanIntervalMinutes} minutes`);
 }
 

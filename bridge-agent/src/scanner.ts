@@ -2,7 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import { config } from "./config";
-import { moveAsset } from "./api";
+import { moveAsset, reportScanProgress } from "./api";
 
 export interface ScannedFile {
   filename: string;
@@ -130,8 +130,12 @@ export async function scan(): Promise<ScannedFile[]> {
   for (const root of config.scanRoots) {
     for await (const filePath of walkDir(root)) {
       scannedCount++;
-      if (scannedCount % 10000 === 0) {
+      if (scannedCount % 5000 === 0) {
         console.log(`[Scanner] Scanned ${scannedCount} files...`);
+        // Report progress every 5000 files
+        try {
+          await reportScanProgress("scanning", scannedCount, newFiles.length);
+        } catch { /* don't fail scan for progress reports */ }
       }
 
       try {
@@ -190,6 +194,10 @@ export async function scan(): Promise<ScannedFile[]> {
   }
   await saveState({ lastScanTime: scanStart.toISOString(), knownFiles });
 
+  // Report final progress
+  try {
+    await reportScanProgress("idle", scannedCount, newFiles.length);
+  } catch { /* ignore */ }
+
   console.log(`[Scanner] Complete. Scanned ${scannedCount} files, found ${newFiles.length} new, ${movedCount} moved.`);
   return newFiles;
-}

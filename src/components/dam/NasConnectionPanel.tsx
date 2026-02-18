@@ -1,7 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { Server, Wifi, WifiOff, Clock, HardDrive, ChevronDown, ChevronUp } from "lucide-react";
+import { Server, Wifi, WifiOff, Clock, HardDrive, ChevronDown, ChevronUp, Play, Loader2 } from "lucide-react";
 import { useAgentStatus } from "@/hooks/useAgentStatus";
 import { formatDistanceToNow } from "date-fns";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const MAX_POINTS = 60;
 
@@ -10,14 +14,34 @@ const NasConnectionPanel = () => {
   const [expanded, setExpanded] = useState(false);
   const [throughputHistory, setThroughputHistory] = useState<number[]>([]);
   const [currentKbps, setCurrentKbps] = useState(0);
+  const [triggering, setTriggering] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Simulate bandwidth monitoring (real implementation would need a metrics endpoint)
+  const scanProgress = agent?.metadata?.scan_progress;
+  const isScanning = scanProgress?.status === "scanning" || scanProgress?.status === "processing";
+  const scanRequested = agent?.metadata?.scan_requested;
+
+  const handleTriggerScan = async () => {
+    if (!agent?.agent_key) return;
+    setTriggering(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("agent-api/trigger-scan", {
+        body: { agent_key: agent.agent_key },
+      });
+      if (error) throw error;
+      toast.success("Scan requested — agent will start within 15 seconds");
+    } catch (err: any) {
+      toast.error(`Failed to trigger scan: ${err.message}`);
+    } finally {
+      setTriggering(false);
+    }
+  };
+
+  // Simulate bandwidth monitoring
   useEffect(() => {
     if (!expanded || !agent?.isOnline) return;
 
     const interval = setInterval(() => {
-      // Simulated throughput based on activity — in production this would come from agent metrics
       const base = agent.isOnline ? 12 + Math.random() * 45 : 0;
       const spike = Math.random() > 0.85 ? Math.random() * 200 : 0;
       const kbps = Math.round(base + spike);
@@ -54,7 +78,6 @@ const NasConnectionPanel = () => {
     const maxVal = Math.max(...throughputHistory, 100);
     const step = w / (MAX_POINTS - 1);
 
-    // Grid lines
     ctx.strokeStyle = "hsla(var(--border), 0.3)";
     ctx.lineWidth = 0.5;
     for (let i = 1; i <= 3; i++) {
@@ -65,7 +88,6 @@ const NasConnectionPanel = () => {
       ctx.stroke();
     }
 
-    // Fill gradient
     const gradient = ctx.createLinearGradient(0, 0, 0, h);
     gradient.addColorStop(0, "hsla(var(--primary), 0.3)");
     gradient.addColorStop(1, "hsla(var(--primary), 0.02)");
@@ -77,8 +99,7 @@ const NasConnectionPanel = () => {
     throughputHistory.forEach((val, i) => {
       const x = startX + i * step;
       const y = h - (val / maxVal) * (h - 4);
-      if (i === 0) ctx.lineTo(x, y);
-      else ctx.lineTo(x, y);
+      ctx.lineTo(x, y);
     });
 
     ctx.lineTo(startX + (throughputHistory.length - 1) * step, h);
@@ -86,7 +107,6 @@ const NasConnectionPanel = () => {
     ctx.fillStyle = gradient;
     ctx.fill();
 
-    // Line
     ctx.beginPath();
     ctx.strokeStyle = "hsl(var(--primary))";
     ctx.lineWidth = 1.5;
@@ -143,6 +163,57 @@ const NasConnectionPanel = () => {
 
       {expanded && (
         <div className="px-4 pb-4 space-y-3 animate-fade-in">
+          {/* Scan Controls */}
+          {isOnline && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs h-7"
+                  onClick={handleTriggerScan}
+                  disabled={triggering || isScanning || !!scanRequested}
+                >
+                  {isScanning ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Play className="h-3 w-3" />
+                  )}
+                  {isScanning ? "Scanning..." : scanRequested ? "Scan Queued" : "Trigger Scan"}
+                </Button>
+                {scanProgress && scanProgress.status !== "idle" && (
+                  <span className="text-[10px] text-muted-foreground font-mono">
+                    {scanProgress.scanned_count.toLocaleString()} files scanned
+                    {scanProgress.new_count > 0 && ` · ${scanProgress.new_count} new`}
+                  </span>
+                )}
+              </div>
+
+              {/* Progress bar during active scan */}
+              {isScanning && (
+                <div className="space-y-1">
+                  <Progress value={undefined} className="h-1.5" />
+                  <div className="flex justify-between text-[10px] text-muted-foreground">
+                    <span>{scanProgress?.status === "scanning" ? "Scanning filesystem..." : "Processing new files..."}</span>
+                    <span>{scanProgress?.scanned_count.toLocaleString()} files</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Last scan result when idle */}
+              {scanProgress?.status === "idle" && scanProgress.updated_at && (
+                <div className="text-[10px] text-muted-foreground">
+                  Last scan: {formatDistanceToNow(new Date(scanProgress.updated_at), { addSuffix: true })}
+                  {" · "}
+                  {scanProgress.scanned_count.toLocaleString()} files checked
+                  {scanProgress.new_count > 0
+                    ? ` · ${scanProgress.new_count} new found`
+                    : " · no new files"}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Connection Details */}
           <div className="space-y-2 text-xs">
             <div className="flex items-center gap-2">
