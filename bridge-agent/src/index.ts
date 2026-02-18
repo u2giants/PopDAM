@@ -5,6 +5,7 @@ import { registerAgent, heartbeat, ingestAsset, updateAsset, queueRender, checkS
 import { scan, ScannedFile } from "./scanner";
 import { generateThumbnail, readThumbnailBase64 } from "./thumbnail";
 import { uploadToSpaces } from "./s3";
+import { flushStats } from "./transferStats";
 
 let agentId: string;
 
@@ -296,14 +297,15 @@ async function main() {
   const agent = await registerAgent();
   agentId = agent.id;
 
-  // Heartbeat every 5 minutes
+  // Heartbeat every 60 seconds (with transfer stats)
   setInterval(async () => {
     try {
-      await heartbeat();
+      const stats = flushStats();
+      await heartbeat(stats);
     } catch (err: any) {
       console.warn(`[Agent] Heartbeat failed: ${err.message}`);
     }
-  }, 5 * 60 * 1000);
+  }, 60 * 1000);
 
   // Poll for manual scan requests every 15 seconds
   let scanRunning = false;

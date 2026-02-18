@@ -51,10 +51,38 @@ Deno.serve(async (req) => {
 
     // --- HEARTBEAT ---
     if (action === "heartbeat" && req.method === "POST") {
-      const { agent_key } = await req.json();
+      const { agent_key, transfer_stats } = await req.json();
+
+      // First fetch current metadata to merge transfer stats
+      const { data: current, error: fetchErr } = await supabase
+        .from("agent_registrations")
+        .select("id, metadata")
+        .eq("agent_key", agent_key)
+        .maybeSingle();
+
+      if (fetchErr) return json({ error: fetchErr.message }, 500);
+      if (!current) return json({ error: "Agent not found" }, 404);
+
+      const metadata = (current.metadata as Record<string, unknown>) || {};
+
+      // Store transfer stats for UI throughput chart
+      if (transfer_stats) {
+        const history = (metadata.transfer_history as Array<unknown>) || [];
+        history.push({
+          bytes_per_sec: transfer_stats.bytes_per_sec,
+          bytes_uploaded: transfer_stats.bytes_uploaded,
+          files_uploaded: transfer_stats.files_uploaded,
+          ts: new Date().toISOString(),
+        });
+        // Keep last 60 data points (1 per minute = 1 hour of history)
+        if (history.length > 60) history.splice(0, history.length - 60);
+        metadata.transfer_history = history;
+        metadata.transfer_current = transfer_stats;
+      }
+
       const { data, error } = await supabase
         .from("agent_registrations")
-        .update({ last_heartbeat: new Date().toISOString() })
+        .update({ last_heartbeat: new Date().toISOString(), metadata })
         .eq("agent_key", agent_key)
         .select()
         .single();
