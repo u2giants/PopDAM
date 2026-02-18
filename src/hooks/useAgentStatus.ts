@@ -41,6 +41,7 @@ export interface AgentStatus {
   } | null;
 }
 
+/** Fetch a single agent (legacy — returns most recently active) */
 export function useAgentStatus() {
   return useQuery({
     queryKey: ["agent_status"],
@@ -68,6 +69,36 @@ export function useAgentStatus() {
         metadata: data.metadata as AgentStatus["metadata"],
       } as AgentStatus;
     },
-    refetchInterval: 5_000, // poll every 5s for scan progress
+    refetchInterval: 5_000,
+  });
+}
+
+/** Fetch ALL registered agents */
+export function useAllAgents() {
+  return useQuery({
+    queryKey: ["all_agents"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("agent_registrations")
+        .select("*")
+        .order("last_heartbeat", { ascending: false });
+
+      if (error) throw error;
+      if (!data || data.length === 0) return [];
+
+      const now = Date.now();
+      return data.map((row) => {
+        const lastBeat = new Date(row.last_heartbeat).getTime();
+        return {
+          id: row.id,
+          agent_name: row.agent_name,
+          agent_key: row.agent_key,
+          last_heartbeat: row.last_heartbeat,
+          isOnline: now - lastBeat < 10 * 60 * 1000,
+          metadata: row.metadata as AgentStatus["metadata"],
+        } as AgentStatus;
+      });
+    },
+    refetchInterval: 5_000,
   });
 }
