@@ -18,7 +18,7 @@ export const config = {
 
   illustratorPath: env(
     "ILLUSTRATOR_PATH",
-    "C:\\Program Files\\Adobe\\Adobe Illustrator 2024\\Support Files\\Contents\\Windows\\Illustrator.exe"
+    "C:\\Program Files\\Adobe\\Adobe Illustrator 2026\\Support Files\\Contents\\Windows\\Illustrator.exe"
   ),
 
   thumbnailMaxSize: parseInt(env("THUMBNAIL_MAX_SIZE", "800"), 10),
