@@ -12,8 +12,8 @@ const AGENTS = [
     icon: Monitor,
     version: "1.0.0",
     downloadUrl:
-      "https://github.com/your-org/PopDAM/releases/latest/download/windows-render-agent.zip",
-    repoUrl: "https://github.com/your-org/PopDAM/tree/main/windows-agent",
+      "https://github.com/u2giants/P/releases/latest/download/windows-render-agent.zip",
+    repoUrl: "https://github.com/u2giants/P/tree/main/windows-agent",
     requirements: [
       "Windows 10/11",
       "Adobe Illustrator 2023+",
@@ -34,8 +34,8 @@ const AGENTS = [
     icon: Server,
     version: "1.0.0",
     downloadUrl:
-      "https://github.com/your-org/PopDAM/releases/latest/download/bridge-agent.zip",
-    repoUrl: "https://github.com/your-org/PopDAM/tree/main/bridge-agent",
+      "https://github.com/u2giants/P/releases/latest/download/bridge-agent.zip",
+    repoUrl: "https://github.com/u2giants/P/tree/main/bridge-agent",
     requirements: [
       "Docker & Docker Compose",
       "Synology NAS or Linux server",
