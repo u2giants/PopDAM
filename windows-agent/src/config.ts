@@ -9,7 +9,12 @@ export const config = {
 
   pollIntervalSeconds: parseInt(env("POLL_INTERVAL_SECONDS", "30"), 10),
 
-  nasUncPrefix: env("NAS_UNC_PREFIX", "\\\\edgesynology2\\mac"),
+  // NAS topology — must match what the bridge agent stores in the database
+  nasHost: env("NAS_HOST", "edgesynology2"),
+  nasShare: env("NAS_SHARE", "mac"),
+  get nasUncPrefix(): string {
+    return env("NAS_UNC_PREFIX", `\\\\${this.nasHost}\\${this.nasShare}`);
+  },
 
   spacesKey: env("DO_SPACES_KEY", ""),
   spacesSecret: env("DO_SPACES_SECRET", ""),

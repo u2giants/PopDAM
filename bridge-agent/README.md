@@ -6,7 +6,7 @@ This agent runs on your Synology NAS inside Docker. It scans shared folders for 
 
 ```
 ┌─────────────────────────────────────────────┐
-│  Docker on edgesynology2                    │
+│  Docker on Synology NAS                     │
 │                                             │
 │  ┌─────────────┐   ┌─────────────────────┐  │
 │  │  Tailscale   │   │   Bridge Agent      │  │
@@ -18,7 +18,7 @@ This agent runs on your Synology NAS inside Docker. It scans shared folders for 
 │                     └────────┬────────────┘  │
 │                              │               │
 │  ┌───────────────────────────▼─────────────┐ │
-│  │  /volume1/Design (read-only mount)      │ │
+│  │  /volume1/<share> (read-only mount)     │ │
 │  └─────────────────────────────────────────┘ │
 └─────────────────────────────────────────────┘
                        │
@@ -31,10 +31,10 @@ This agent runs on your Synology NAS inside Docker. It scans shared folders for 
 
 ## Quick Start
 
-### 1. SSH into your Synology (or use Container Manager UI)
+### 1. SSH into your Synology
 
 ```bash
-ssh admin@edgesynology2
+ssh admin@your-nas-hostname
 ```
 
 ### 2. Clone this repo
@@ -54,84 +54,136 @@ nano .env
 
 Fill in:
 - `TAILSCALE_AUTH_KEY` — your Tailscale auth key
-- `SUPABASE_URL` — your DAM cloud URL
-- `SUPABASE_ANON_KEY` — your DAM anon key
-- Adjust `SCAN_ROOTS` if your design files are in a different shared folder
+- `SUPABASE_URL` / `SUPABASE_ANON_KEY` — your DAM cloud credentials
+- `NAS_HOST` — the NAS hostname used in UNC paths (e.g. `edgesynology2`)
+- `NAS_SHARE` — the share name (e.g. `mac`)
+- Optionally set `SCAN_ROOTS` to limit scanning to specific subfolders
 
-### 4. Adjust the volume mount (if needed)
+### 4. Ensure the docker-compose volume mount matches your config
 
-In `docker-compose.yml`, update the volume mount to match your Synology shared folder:
+**This is the most important step.** Your volume mount in `docker-compose.yml` must match your `NAS_MOUNT_ROOT` (which defaults to `/mnt/nas/<NAS_SHARE>`).
 
+The default mount is:
 ```yaml
 volumes:
-  - /volume1/Design:/mnt/nas/Design:ro
+  - /volume1/mac:/mnt/nas/mac:ro
 ```
 
-If you have multiple shared folders with design files:
+This means:
+- `NAS_SHARE=mac` → `NAS_MOUNT_ROOT=/mnt/nas/mac`
+- `SCAN_ROOTS` must point to paths under `/mnt/nas/mac`
+
+**If your share is named differently** (e.g. `Design`), update both:
+
+1. `docker-compose.yml`:
+   ```yaml
+   volumes:
+     - /volume1/Design:/mnt/nas/Design:ro
+   ```
+
+2. `.env`:
+   ```
+   NAS_SHARE=Design
+   # SCAN_ROOTS will default to /mnt/nas/Design
+   ```
+
+**Multiple shares:**
 ```yaml
 volumes:
   - /volume1/Design:/mnt/nas/Design:ro
   - /volume1/Archive:/mnt/nas/Archive:ro
 ```
-
-And update `SCAN_ROOTS` in `.env`:
 ```
+NAS_MOUNT_ROOT=/mnt/nas/Design
 SCAN_ROOTS=/mnt/nas/Design,/mnt/nas/Archive
 ```
 
 ### 5. Build and start
 
 ```bash
-docker-compose up -d --build
+sudo docker compose build --no-cache agent
+sudo docker compose up -d
 ```
 
 ### 6. Check logs
 
 ```bash
-docker-compose logs -f agent
+sudo docker compose logs -f agent
 ```
 
 You should see:
 ```
 ==============================================
  DAM Bridge Agent
-  Agent:  edgesynology2
-  Roots:  /mnt/nas/Design
-  Since:  2020-01-01
+  Agent:    edgesynology2
+  NAS:      \\edgesynology2\mac → /mnt/nas/mac
+  Roots:    /mnt/nas/mac
+  Since:    2020-01-01
   Interval: 10m
+  Storage:  DO Spaces (popdam.nyc3)
 ==============================================
-[API] Registered as agent abc123-...
+[Scanner] ✓ All scan roots validated: /mnt/nas/mac
 [Scanner] Starting incremental scan since 2020-01-01T00:00:00.000Z
-[Scanner] Roots: /mnt/nas/Design
-[Scanner] Scanned 10000 files...
-[Scanner] Complete. Scanned 145230 files, found 3421 new.
-[Agent] Processing batch of 20 files
-[Agent] Ingesting: SpiderMan_WallArt_v3.psd
-[Agent] Thumbnail generated: 4000x3000
 ```
 
-## Updating
+### What if SCAN_ROOTS is wrong?
 
-When the agent code is updated in the repository:
+If your SCAN_ROOTS doesn't match the volume mount, you'll see a **clear fatal error**:
+
+```
+═══════════════════════════════════════════════════════════════
+  FATAL: SCAN_ROOTS path does not exist inside the container
+
+  Path:  /mnt/nas/Design
+
+  This usually means your docker-compose.yml volume mount
+  does not match your SCAN_ROOTS (or NAS_MOUNT_ROOT) setting.
+
+  Current NAS_MOUNT_ROOT: /mnt/nas/mac
+  Current SCAN_ROOTS:     /mnt/nas/Design
+═══════════════════════════════════════════════════════════════
+```
+
+## Configuration Reference
+
+| Variable | Default | Description |
+|---|---|---|
+| `AGENT_NAME` | `edgesynology2` | Identity name for this agent (shown in UI) |
+| `AGENT_KEY` | `bridge-agent-edgesynology2` | Authentication key for API calls |
+| `NAS_HOST` | value of `AGENT_NAME` | NAS hostname used in UNC paths (\\NAS_HOST\...) |
+| `NAS_SHARE` | `mac` | NAS share name |
+| `NAS_MOUNT_ROOT` | `/mnt/nas/<NAS_SHARE>` | Container path where the share is mounted |
+| `SCAN_ROOTS` | value of `NAS_MOUNT_ROOT` | Comma-separated directories to scan |
+| `SCAN_MIN_DATE` | `2020-01-01` | Skip files modified before this date |
+| `SCAN_EXTENSIONS` | `psd,ai` | File extensions to process |
+| `SCAN_INTERVAL_MINUTES` | `10` | Minutes between automatic scans |
+
+## Updating
 
 ```bash
 cd /volume1/docker/dam-agent
 git pull
 cd bridge-agent
-docker-compose up -d --build
+sudo docker compose build --no-cache agent
+sudo docker compose up -d
 ```
 
 ## Troubleshooting
+
+### "FATAL: SCAN_ROOTS path does not exist"
+Your docker-compose volume mount doesn't match SCAN_ROOTS. Check the volume line in `docker-compose.yml` and ensure the container path matches what SCAN_ROOTS expects.
 
 ### "Permission denied" on scan
 Make sure the Docker user has read access to the shared folder. The mount is read-only (`:ro`) by default.
 
 ### Tailscale not connecting
-Check the Tailscale container logs: `docker-compose logs tailscale`
-Ensure your auth key is still valid (they expire after the period you set).
+Check: `sudo docker compose logs tailscale`. Ensure your auth key is still valid.
 
 ### Thumbnail generation failing for AI files
-AI files without PDF compatibility require Ghostscript or Inkscape. Both are included in the Docker image. Check logs for specific error messages.
+AI files without PDF compatibility require Ghostscript or Inkscape. Both are included in the Docker image.
 
 ### High memory usage during scan
-The scanner is streaming (async generator), so it shouldn't use much memory even for millions of files. If you see high memory, check if thumbnail generation is the cause — large PSD files can use significant memory during resize.
+The scanner is streaming (async generator), so it shouldn't use much memory. If you see high memory, thumbnail generation on large PSD files may be the cause.
+
+### Container won't stop (Ctrl+C doesn't work)
+Open a second terminal and run: `sudo docker compose kill agent`

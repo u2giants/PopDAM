@@ -2,13 +2,29 @@ import path from "path";
 import fs from "fs/promises";
 import { config } from "./config";
 import { registerAgent, heartbeat, ingestAsset, updateAsset, queueRender, checkScanRequest, reportScanProgress, reportIngestionProgress } from "./api";
-import { scan, saveState, ScannedFile, ScanResult } from "./scanner";
+import { scan, saveState, validateScanRoots, ScannedFile, ScanResult } from "./scanner";
 import { generateThumbnail, readThumbnailBase64 } from "./thumbnail";
 import { uploadToSpaces } from "./s3";
 import { flushStats } from "./transferStats";
 import { runNormalizer } from "./tiff-normalizer";
 
 let agentId: string;
+
+// === Helpers for UNC ↔ local path conversion ===
+
+/** Convert a stored UNC path to a local container path using config */
+function uncToLocal(uncPath: string): string | null {
+  const normalized = uncPath.replace(/\\/g, "/");
+  const prefix = `//${config.nasHost}/${config.nasShare}`;
+  if (!normalized.startsWith(prefix)) return null;
+  const relative = normalized.slice(prefix.length);
+  return `${config.nasMountRoot}${relative}`;
+}
+
+/** Check if a UNC path belongs to our configured NAS host/share */
+function isOurAsset(uncPath: string): boolean {
+  return uncToLocal(uncPath) !== null;
+}
 
 /** Upload thumbnail to DO Spaces and return the public URL */
 async function uploadThumbnail(thumbPath: string, assetId: string): Promise<string> {
@@ -135,13 +151,12 @@ async function reprocess() {
   for (let i = 0; i < allAssets.length; i++) {
     const asset = allAssets[i];
     try {
-      const normalized = asset.file_path.replace(/\\/g, "/");
-      if (!normalized.includes("edgesynology2/mac")) {
+      const localPath = uncToLocal(asset.file_path);
+      if (!localPath) {
         skipped++;
         continue;
       }
 
-      const localPath = normalized.replace(/^\/\/edgesynology2\/mac/, "/mnt/nas/mac");
       console.log(`[Reprocess] [${i + 1}/${allAssets.length}] Processing: ${asset.file_type.toUpperCase()} ${path.basename(asset.file_path)}`);
 
       const result = await generateThumbnail(localPath, asset.file_type, asset.id);
@@ -263,13 +278,11 @@ async function backfillDates() {
   for (let i = 0; i < allAssets.length; i++) {
     const asset = allAssets[i];
     try {
-      const normalized = asset.file_path.replace(/\\/g, "/");
-      if (!normalized.includes("edgesynology2/mac")) {
+      const localPath = uncToLocal(asset.file_path);
+      if (!localPath) {
         skipped++;
         continue;
       }
-
-      const localPath = normalized.replace(/^\/\/edgesynology2\/mac/, "/mnt/nas/mac");
 
       const stat = await fs.stat(localPath);
       const modifiedAt = stat.mtime.toISOString();
@@ -374,11 +387,12 @@ async function main() {
 
   console.log("==============================================");
   console.log(" DAM Bridge Agent");
-  console.log(`  Agent:  ${config.agentName}`);
-  console.log(`  Roots:  ${config.scanRoots.join(", ")}`);
-  console.log(`  Since:  ${config.scanMinDate}`);
+  console.log(`  Agent:    ${config.agentName}`);
+  console.log(`  NAS:      \\\\${config.nasHost}\\${config.nasShare} → ${config.nasMountRoot}`);
+  console.log(`  Roots:    ${config.scanRoots.join(", ")}`);
+  console.log(`  Since:    ${config.scanMinDate}`);
   console.log(`  Interval: ${config.scanIntervalMinutes}m`);
-  console.log(`  Storage: DO Spaces (${config.spacesBucket}.${config.spacesRegion})`);
+  console.log(`  Storage:  DO Spaces (${config.spacesBucket}.${config.spacesRegion})`);
   console.log("==============================================");
 
   // Register with the API
