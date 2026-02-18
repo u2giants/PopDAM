@@ -2,7 +2,7 @@ import path from "path";
 import fs from "fs/promises";
 import { config } from "./config";
 import { registerAgent, heartbeat, ingestAsset, updateAsset, queueRender, checkScanRequest, reportScanProgress, reportIngestionProgress } from "./api";
-import { scan, ScannedFile } from "./scanner";
+import { scan, saveState, ScannedFile, ScanResult } from "./scanner";
 import { generateThumbnail, readThumbnailBase64 } from "./thumbnail";
 import { uploadToSpaces } from "./s3";
 import { flushStats } from "./transferStats";
@@ -17,58 +17,80 @@ async function uploadThumbnail(thumbPath: string, assetId: string): Promise<stri
   return url;
 }
 
-/** Process a batch of newly discovered files */
+/** Process a batch of newly discovered files (original — no tracking) */
 async function processBatch(files: ScannedFile[]) {
   console.log(`[Agent] Processing batch of ${files.length} files`);
-
   for (const file of files) {
     try {
-      console.log(`[Agent] Ingesting: ${file.filename}`);
-
-      // 1. Ingest the asset record
-      const { asset } = await ingestAsset({
-        filename: file.filename,
-        file_path: file.uncPath,
-        file_type: file.fileType,
-        file_size: file.fileSize,
-        width: 0,
-        height: 0,
-        artboards: 1,
-        modified_at: file.modifiedAt.toISOString(),
-        file_created_at: file.createdAt.toISOString(),
-      });
-
-      // 2. Generate thumbnail, upload to DO Spaces, update asset
-      try {
-        const result = await generateThumbnail(file.filePath, file.fileType, asset.id);
-
-        if (result.success) {
-          const thumbnailUrl = await uploadThumbnail(result.thumbnailPath, asset.id);
-          await updateAsset(asset.id, {
-            thumbnail_url: thumbnailUrl,
-            width: result.width,
-            height: result.height,
-            status: "processing",
-          });
-          console.log(`[Agent] Thumbnail uploaded: ${result.width}x${result.height} → ${thumbnailUrl}`);
-        } else {
-          // Thumbnail generation failed (e.g. AI file without PDF compat)
-          console.warn(`[Agent] Thumbnail failed (${result.reason}): ${file.filename}`);
-          await updateAsset(asset.id, { thumbnail_error: result.reason });
-          // Queue for Windows render agent
-          try {
-            await queueRender(asset.id, result.reason);
-            console.log(`[Agent] Queued render job for ${file.filename}`);
-          } catch (queueErr: any) {
-            console.warn(`[Agent] Failed to queue render: ${queueErr.message}`);
-          }
-        }
-      } catch (thumbErr: any) {
-        console.warn(`[Agent] Thumbnail failed for ${file.filename}: ${thumbErr.message}`);
-      }
+      await ingestAndThumbnail(file);
     } catch (err: any) {
       console.error(`[Agent] Failed to ingest ${file.filename}: ${err.message}`);
     }
+  }
+}
+
+interface BatchResult {
+  hash: string;
+  success: boolean;
+}
+
+/** Process a batch with per-file success tracking */
+async function processBatchTracked(files: ScannedFile[]): Promise<BatchResult[]> {
+  const results: BatchResult[] = [];
+  for (const file of files) {
+    try {
+      await ingestAndThumbnail(file);
+      results.push({ hash: file.sha256, success: true });
+    } catch (err: any) {
+      console.error(`[Agent] Failed to ingest ${file.filename}: ${err.message}`);
+      results.push({ hash: file.sha256, success: false });
+    }
+  }
+  return results;
+}
+
+/** Ingest a single file: create DB record, generate thumbnail, upload */
+async function ingestAndThumbnail(file: ScannedFile) {
+  console.log(`[Agent] Ingesting: ${file.filename}`);
+
+  // 1. Ingest the asset record
+  const { asset } = await ingestAsset({
+    filename: file.filename,
+    file_path: file.uncPath,
+    file_type: file.fileType,
+    file_size: file.fileSize,
+    width: 0,
+    height: 0,
+    artboards: 1,
+    modified_at: file.modifiedAt.toISOString(),
+    file_created_at: file.createdAt.toISOString(),
+  });
+
+  // 2. Generate thumbnail, upload to DO Spaces, update asset
+  try {
+    const result = await generateThumbnail(file.filePath, file.fileType, asset.id);
+
+    if (result.success) {
+      const thumbnailUrl = await uploadThumbnail(result.thumbnailPath, asset.id);
+      await updateAsset(asset.id, {
+        thumbnail_url: thumbnailUrl,
+        width: result.width,
+        height: result.height,
+        status: "processing",
+      });
+      console.log(`[Agent] Thumbnail uploaded: ${result.width}x${result.height} → ${thumbnailUrl}`);
+    } else {
+      console.warn(`[Agent] Thumbnail failed (${result.reason}): ${file.filename}`);
+      await updateAsset(asset.id, { thumbnail_error: result.reason });
+      try {
+        await queueRender(asset.id, result.reason);
+        console.log(`[Agent] Queued render job for ${file.filename}`);
+      } catch (queueErr: any) {
+        console.warn(`[Agent] Failed to queue render: ${queueErr.message}`);
+      }
+    }
+  } catch (thumbErr: any) {
+    console.warn(`[Agent] Thumbnail failed for ${file.filename}: ${thumbErr.message}`);
   }
 }
 
@@ -407,22 +429,61 @@ async function main() {
 
 async function runScanCycle() {
   try {
-    const newFiles = await scan();
+    const result: ScanResult = await scan();
+    const { newFiles, updatedKnownFiles, scanStartTime } = result;
+
     if (newFiles.length > 0) {
       let ingested = 0;
+      let failed = 0;
+      const successHashes = new Set<string>();
+
       // Report initial ingestion progress
       try { await reportIngestionProgress(newFiles.length, 0); } catch { /* ignore */ }
 
       for (let i = 0; i < newFiles.length; i += 20) {
         const batch = newFiles.slice(i, i + 20);
-        await processBatch(batch);
-        ingested += batch.length;
+        const batchResults = await processBatchTracked(batch);
+
+        // Track which files were successfully ingested
+        for (const r of batchResults) {
+          if (r.success) {
+            successHashes.add(r.hash);
+            ingested++;
+          } else {
+            failed++;
+          }
+        }
+
         // Report ingestion progress every batch
-        try { await reportIngestionProgress(newFiles.length, ingested); } catch { /* ignore */ }
+        try { await reportIngestionProgress(newFiles.length, ingested + failed); } catch { /* ignore */ }
+
+        // Save state incrementally every 10 batches (200 files)
+        // Only persist hashes of files that were SUCCESSFULLY ingested
+        if ((i / 20) % 10 === 9) {
+          const safeKnownFiles = updatedKnownFiles.filter(
+            kf => !newFiles.some(nf => nf.sha256 === kf.hash) || successHashes.has(kf.hash)
+          );
+          await saveState({ lastScanTime: scanStartTime, knownFiles: safeKnownFiles });
+          console.log(`[Agent] Checkpoint saved: ${successHashes.size} ingested, ${failed} failed`);
+        }
+      }
+
+      // Final state save — only include successfully ingested new files
+      const finalKnownFiles = updatedKnownFiles.filter(
+        kf => !newFiles.some(nf => nf.sha256 === kf.hash) || successHashes.has(kf.hash)
+      );
+      await saveState({ lastScanTime: scanStartTime, knownFiles: finalKnownFiles });
+
+      console.log(`[Agent] Ingestion complete. Success: ${ingested}, Failed: ${failed}`);
+      if (failed > 0) {
+        console.log(`[Agent] ${failed} failed files will be retried on next scan cycle.`);
       }
 
       // Clear ingestion progress when done
       try { await reportIngestionProgress(0, 0); } catch { /* ignore */ }
+    } else {
+      // No new files, but still save state (for move detections, lastScanTime)
+      await saveState({ lastScanTime: scanStartTime, knownFiles: updatedKnownFiles });
     }
   } catch (err: any) {
     console.error(`[Agent] Scan cycle failed: ${err.message}`);

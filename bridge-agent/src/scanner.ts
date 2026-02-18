@@ -2,7 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import { config } from "./config";
-import { moveAsset, reportScanProgress } from "./api";
+import { reportScanProgress } from "./api";
 
 export interface ScannedFile {
   filename: string;
@@ -30,7 +30,7 @@ const STATE_FILE = path.join(config.dataDir, "scan-state.json");
 const minDate = new Date(config.scanMinDate);
 
 /** Load persisted scan state, auto-migrating legacy format */
-async function loadState(): Promise<{ lastScanTime: string; knownFiles: KnownFile[] }> {
+export async function loadState(): Promise<{ lastScanTime: string; knownFiles: KnownFile[] }> {
   try {
     const raw = await fs.readFile(STATE_FILE, "utf-8");
     const state: ScanState = JSON.parse(raw);
@@ -53,8 +53,8 @@ async function loadState(): Promise<{ lastScanTime: string; knownFiles: KnownFil
   }
 }
 
-/** Save scan state */
-async function saveState(state: { lastScanTime: string; knownFiles: KnownFile[] }): Promise<void> {
+/** Save scan state — called AFTER successful ingestion, not during scan */
+export async function saveState(state: { lastScanTime: string; knownFiles: KnownFile[] }): Promise<void> {
   await fs.mkdir(path.dirname(STATE_FILE), { recursive: true });
   await fs.writeFile(STATE_FILE, JSON.stringify(state, null, 2));
 }
@@ -107,8 +107,21 @@ async function* walkDir(dir: string): AsyncGenerator<string> {
   }
 }
 
-/** Run an incremental scan across all configured roots */
-export async function scan(): Promise<ScannedFile[]> {
+export interface ScanResult {
+  newFiles: ScannedFile[];
+  /** The updated hash→path map (including moved files). Caller persists AFTER ingestion. */
+  updatedKnownFiles: KnownFile[];
+  scanStartTime: string;
+  scannedCount: number;
+  movedCount: number;
+}
+
+/**
+ * Run an incremental scan across all configured roots.
+ * IMPORTANT: This function does NOT save state. The caller must call
+ * saveState() AFTER successful ingestion to persist the known hashes.
+ */
+export async function scan(): Promise<ScanResult> {
   const state = await loadState();
 
   // Build hash→path map for movement detection
@@ -132,7 +145,6 @@ export async function scan(): Promise<ScannedFile[]> {
       scannedCount++;
       if (scannedCount % 5000 === 0) {
         console.log(`[Scanner] Scanned ${scannedCount} files...`);
-        // Report progress every 5000 files
         try {
           await reportScanProgress("scanning", scannedCount, newFiles.length);
         } catch { /* don't fail scan for progress reports */ }
@@ -150,18 +162,18 @@ export async function scan(): Promise<ScannedFile[]> {
 
         if (hashToPath.has(hash)) {
           const knownPath = hashToPath.get(hash)!;
-          // If we have a recorded path and it differs, this file moved
           if (knownPath && knownPath !== uncPath) {
             try {
               console.log(`[Scanner] File moved: ${path.basename(knownPath)} → new folder`);
+              const { moveAsset } = await import("./api");
               await moveAsset(knownPath, uncPath);
-              hashToPath.set(hash, uncPath); // Update our local map
+              hashToPath.set(hash, uncPath);
               movedCount++;
             } catch (moveErr: any) {
               console.warn(`[Scanner] Move detection failed: ${moveErr.message}`);
             }
           }
-          continue; // Already known (same or moved), don't re-ingest
+          continue;
         }
 
         const ext = path.extname(filePath).toLowerCase().replace(".", "") as "psd" | "ai";
@@ -177,6 +189,7 @@ export async function scan(): Promise<ScannedFile[]> {
           sha256: hash,
         });
 
+        // Add to map but DO NOT persist yet — caller does that after ingestion
         hashToPath.set(hash, uncPath);
       } catch (err: any) {
         console.warn(`[Scanner] Error processing ${filePath}: ${err.message}`);
@@ -184,18 +197,17 @@ export async function scan(): Promise<ScannedFile[]> {
     }
   }
 
-  // Persist updated state (new format)
-  const knownFiles: KnownFile[] = [];
-  for (const [hash, p] of hashToPath) {
-    knownFiles.push({ hash, path: p });
-  }
-  await saveState({ lastScanTime: scanStart.toISOString(), knownFiles });
-
-  // Report final progress
+  // Report final scan progress (but do NOT save state here!)
   try {
     await reportScanProgress("idle", scannedCount, newFiles.length);
   } catch { /* ignore */ }
 
+  // Build the updated known files list for the caller to persist
+  const updatedKnownFiles: KnownFile[] = [];
+  for (const [hash, p] of hashToPath) {
+    updatedKnownFiles.push({ hash, path: p });
+  }
+
   console.log(`[Scanner] Complete. Scanned ${scannedCount} files, found ${newFiles.length} new, ${movedCount} moved.`);
-  return newFiles;
+  return { newFiles, updatedKnownFiles, scanStartTime: scanStart.toISOString(), scannedCount, movedCount };
 }
