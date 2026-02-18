@@ -45,6 +45,10 @@ export interface AgentStatus {
     ingestion_progress?: IngestionProgress;
     transfer_history?: TransferPoint[];
     transfer_current?: TransferCurrent;
+    last_scan_completed_at?: string;
+    scan_cycles_completed?: number;
+    total_scanned_lifetime?: number;
+    total_new_lifetime?: number;
   } | null;
 }
 
