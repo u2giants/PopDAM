@@ -8,7 +8,7 @@ echo.
 if not exist "package.json" (
     echo ERROR: Run this from the windows-agent folder.
     echo   cd C:\popdam\PopDAM\windows-agent
-    echo   setup.bat
+    echo   .\setup.bat
     pause
     exit /b 1
 )
@@ -34,7 +34,21 @@ if exist "C:\Program Files\Adobe\Adobe Illustrator 2026\Support Files\Contents\W
 if exist "\\edgesynology2\mac" (
     echo [OK] NAS share \\edgesynology2\mac is accessible
 ) else (
-    echo [WARN] Cannot reach \\edgesynology2\mac — make sure Tailscale is running
+    echo [WARN] Cannot reach \\edgesynology2\mac -- make sure Tailscale is running
+)
+
+:: Create .env if missing
+if not exist ".env" (
+    if exist ".env.example" (
+        copy .env.example .env >nul
+        echo [OK] Created .env from template
+        echo [ACTION NEEDED] Edit .env with your credentials:
+        echo     notepad "%~dp0.env"
+    ) else (
+        echo [WARN] No .env or .env.example found
+    )
+) else (
+    echo [OK] .env file exists
 )
 
 :: Install dependencies
@@ -66,7 +80,7 @@ echo [OK] Data directory ready
 echo.
 echo ============================================
 echo   Setup complete! To start the agent, run:
-echo     npm start
+echo     .\start.bat
 echo   Or double-click start.bat
 echo ============================================
 pause

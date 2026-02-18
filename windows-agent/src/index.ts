@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { config } from "./config";
 import { registerAgent, heartbeat, claimRenderJobs, completeRender, RenderJob } from "./api";
 import { renderWithIllustrator } from "./illustrator";
