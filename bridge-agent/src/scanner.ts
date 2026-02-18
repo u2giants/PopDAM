@@ -201,3 +201,4 @@ export async function scan(): Promise<ScannedFile[]> {
 
   console.log(`[Scanner] Complete. Scanned ${scannedCount} files, found ${newFiles.length} new, ${movedCount} moved.`);
   return newFiles;
+}
