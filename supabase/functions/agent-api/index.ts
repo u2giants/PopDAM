@@ -392,9 +392,13 @@ Deno.serve(async (req) => {
         updated_at: new Date().toISOString(),
       };
 
-      // Clear request flag if scan is complete
+      // Clear request flag and accumulate lifetime stats when scan completes
       if (scan_status === "idle") {
         metadata.scan_requested = false;
+        metadata.last_scan_completed_at = new Date().toISOString();
+        metadata.scan_cycles_completed = ((metadata.scan_cycles_completed as number) || 0) + 1;
+        metadata.total_scanned_lifetime = ((metadata.total_scanned_lifetime as number) || 0) + (scanned_count || 0);
+        metadata.total_new_lifetime = ((metadata.total_new_lifetime as number) || 0) + (new_count || 0);
       }
 
       const { error: updateErr } = await supabase

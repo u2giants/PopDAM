@@ -173,13 +173,24 @@ const AgentCard = ({ agent }: { agent: AgentStatus }) => {
               )}
 
               {scanProgress?.status === "idle" && scanProgress.updated_at && (
-                <div className="text-[10px] text-muted-foreground">
-                  Last scan: {formatDistanceToNow(new Date(scanProgress.updated_at), { addSuffix: true })}
-                  {" · "}
-                  {scanProgress.scanned_count.toLocaleString()} files checked
-                  {scanProgress.new_count > 0
-                    ? ` · ${scanProgress.new_count.toLocaleString()} new found`
-                    : " · no new files"}
+                <div className="text-[10px] text-muted-foreground space-y-0.5">
+                  <div>
+                    Last scan: {formatDistanceToNow(new Date(scanProgress.updated_at), { addSuffix: true })}
+                    {" · "}
+                    {scanProgress.scanned_count.toLocaleString()} files checked
+                    {scanProgress.new_count > 0
+                      ? ` · ${scanProgress.new_count.toLocaleString()} new found`
+                      : " · no new files"}
+                  </div>
+                  {agent.metadata?.scan_cycles_completed != null && agent.metadata.scan_cycles_completed > 0 && (
+                    <div className="text-muted-foreground/70">
+                      Lifetime: {agent.metadata.scan_cycles_completed} scan{agent.metadata.scan_cycles_completed > 1 ? "s" : ""}
+                      {" · "}
+                      {(agent.metadata.total_scanned_lifetime ?? 0).toLocaleString()} files checked
+                      {" · "}
+                      {(agent.metadata.total_new_lifetime ?? 0).toLocaleString()} new ingested
+                    </div>
+                  )}
                 </div>
               )}
 
