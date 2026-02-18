@@ -1,6 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
-import { LayoutGrid, Settings, Download, Wifi, WifiOff } from "lucide-react";
+import { LayoutGrid, Settings, Download, Wifi, WifiOff, LogOut } from "lucide-react";
 import { useAgentStatus } from "@/hooks/useAgentStatus";
+import { useAuth } from "@/contexts/AuthContext";
 
 const navItems = [
   { path: "/", label: "Library", icon: LayoutGrid },
@@ -11,6 +12,7 @@ const navItems = [
 const AppHeader = () => {
   const location = useLocation();
   const { data: agent } = useAgentStatus();
+  const { user, signOut } = useAuth();
   const isOnline = agent?.isOnline ?? false;
 
   return (
@@ -52,6 +54,16 @@ const AppHeader = () => {
           <span className="font-medium">{agent?.agent_name ?? "Agent"}</span>
           <span className={`w-2 h-2 rounded-full ${isOnline ? "bg-success" : "bg-destructive"}`} />
         </div>
+        {user && (
+          <button
+            onClick={signOut}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            title={user.email ?? "Sign out"}
+          >
+            <span className="hidden sm:inline truncate max-w-[120px]">{user.email}</span>
+            <LogOut className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
     </header>
   );
