@@ -31,6 +31,40 @@ async function ensureDir() {
 }
 
 /**
+ * Validate that a generated thumbnail is not the Adobe Illustrator
+ * "saved without PDF Content" placeholder image.
+ * The placeholder is a mostly-white image with minimal color variation.
+ * Returns true if the image appears to be a real preview.
+ */
+async function isValidThumbnail(imagePath: string): Promise<boolean> {
+  try {
+    const stats = await sharp(imagePath).stats();
+    // Check all channels: if mean is very high (near white) and std dev is very low,
+    // it's likely the placeholder image
+    const channels = stats.channels;
+    const allNearWhite = channels.every(ch => ch.mean > 240);
+    const allLowVariance = channels.every(ch => ch.stdev < 30);
+    
+    if (allNearWhite && allLowVariance) {
+      console.log(`[Thumbnail] Rejected placeholder: mean=[${channels.map(c => c.mean.toFixed(1)).join(',')}] stdev=[${channels.map(c => c.stdev.toFixed(1)).join(',')}]`);
+      return false;
+    }
+
+    // Additional check: if the image is very small in file size (< 5KB), 
+    // it's likely just text on white
+    const stat = await fs.stat(imagePath);
+    if (stat.size < 5000 && allNearWhite) {
+      console.log(`[Thumbnail] Rejected tiny placeholder: ${stat.size} bytes`);
+      return false;
+    }
+
+    return true;
+  } catch {
+    return true; // If we can't validate, assume it's fine
+  }
+}
+
+/**
  * Extract thumbnail from a PSD file.
  */
 async function thumbnailFromPsd(filePath: string, outputPath: string): Promise<ThumbnailResult> {
@@ -99,6 +133,16 @@ async function thumbnailFromAi(filePath: string, outputPath: string): Promise<Th
       width: config.thumbnailMaxSize, height: config.thumbnailMaxSize,
       fit: "inside", withoutEnlargement: true,
     }).jpeg({ quality: config.thumbnailQuality }).toFile(outputPath);
+
+    if (!(await isValidThumbnail(outputPath))) {
+      await fs.unlink(outputPath).catch(() => {});
+      return {
+        success: false,
+        reason: "no_pdf_compat",
+        message: `AI file thumbnail is placeholder (no real PDF content): ${filePath}`,
+      };
+    }
+
     return { success: true, thumbnailPath: outputPath, width: metadata.width || 0, height: metadata.height || 0 };
   } catch { /* fall through */ }
 
@@ -117,6 +161,16 @@ async function thumbnailFromAi(filePath: string, outputPath: string): Promise<Th
       fit: "inside", withoutEnlargement: true,
     }).jpeg({ quality: config.thumbnailQuality }).toFile(outputPath);
     await fs.unlink(tempPng).catch(() => {});
+
+    if (!(await isValidThumbnail(outputPath))) {
+      await fs.unlink(outputPath).catch(() => {});
+      return {
+        success: false,
+        reason: "no_pdf_compat",
+        message: `AI file thumbnail is placeholder (no real PDF content): ${filePath}`,
+      };
+    }
+
     return { success: true, thumbnailPath: outputPath, width: metadata.width || 0, height: metadata.height || 0 };
   } catch { /* fall through */ }
 
@@ -132,6 +186,16 @@ async function thumbnailFromAi(filePath: string, outputPath: string): Promise<Th
       fit: "inside", withoutEnlargement: true,
     }).jpeg({ quality: config.thumbnailQuality }).toFile(outputPath);
     await fs.unlink(tempPng).catch(() => {});
+
+    if (!(await isValidThumbnail(outputPath))) {
+      await fs.unlink(outputPath).catch(() => {});
+      return {
+        success: false,
+        reason: "no_pdf_compat",
+        message: `AI file thumbnail is placeholder (no real PDF content): ${filePath}`,
+      };
+    }
+
     return { success: true, thumbnailPath: outputPath, width: metadata.width || 0, height: metadata.height || 0 };
   } catch (err) {
     // All methods failed — this AI file likely has no PDF compatibility
