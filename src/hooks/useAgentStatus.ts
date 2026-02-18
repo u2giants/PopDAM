@@ -23,6 +23,12 @@ export interface TransferCurrent {
   bytes_per_sec: number;
 }
 
+export interface IngestionProgress {
+  total: number;
+  done: number;
+  updated_at: string;
+}
+
 export interface AgentStatus {
   id: string;
   agent_name: string;
@@ -36,6 +42,7 @@ export interface AgentStatus {
     scan_requested?: boolean;
     scan_requested_at?: string;
     scan_progress?: ScanProgress;
+    ingestion_progress?: IngestionProgress;
     transfer_history?: TransferPoint[];
     transfer_current?: TransferCurrent;
   } | null;

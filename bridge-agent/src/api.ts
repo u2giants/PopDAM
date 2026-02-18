@@ -137,3 +137,12 @@ export async function reportScanProgress(scanStatus: string, scannedCount: numbe
     total_estimate: totalEstimate || 0,
   });
 }
+
+/** Report ingestion progress (how many scanned files have been processed) */
+export async function reportIngestionProgress(total: number, done: number) {
+  return post("ingestion-progress", {
+    agent_key: config.agentKey,
+    ingestion_total: total,
+    ingestion_done: done,
+  });
+}

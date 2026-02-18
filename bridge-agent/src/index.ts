@@ -1,7 +1,7 @@
 import path from "path";
 import fs from "fs/promises";
 import { config } from "./config";
-import { registerAgent, heartbeat, ingestAsset, updateAsset, queueRender, checkScanRequest, reportScanProgress } from "./api";
+import { registerAgent, heartbeat, ingestAsset, updateAsset, queueRender, checkScanRequest, reportScanProgress, reportIngestionProgress } from "./api";
 import { scan, ScannedFile } from "./scanner";
 import { generateThumbnail, readThumbnailBase64 } from "./thumbnail";
 import { uploadToSpaces } from "./s3";
@@ -343,10 +343,20 @@ async function runScanCycle() {
   try {
     const newFiles = await scan();
     if (newFiles.length > 0) {
+      let ingested = 0;
+      // Report initial ingestion progress
+      try { await reportIngestionProgress(newFiles.length, 0); } catch { /* ignore */ }
+
       for (let i = 0; i < newFiles.length; i += 20) {
         const batch = newFiles.slice(i, i + 20);
         await processBatch(batch);
+        ingested += batch.length;
+        // Report ingestion progress every batch
+        try { await reportIngestionProgress(newFiles.length, ingested); } catch { /* ignore */ }
       }
+
+      // Clear ingestion progress when done
+      try { await reportIngestionProgress(0, 0); } catch { /* ignore */ }
     }
   } catch (err: any) {
     console.error(`[Agent] Scan cycle failed: ${err.message}`);

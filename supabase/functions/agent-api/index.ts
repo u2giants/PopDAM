@@ -406,6 +406,36 @@ Deno.serve(async (req) => {
       return json({ success: true });
     }
 
+    // --- INGESTION PROGRESS (bridge agent reports processing progress) ---
+    if (action === "ingestion-progress" && req.method === "POST") {
+      const { agent_key, ingestion_total, ingestion_done } = await req.json();
+      if (!agent_key) return json({ error: "agent_key required" }, 400);
+
+      const { data: agent, error: findErr } = await supabase
+        .from("agent_registrations")
+        .select("id, metadata")
+        .eq("agent_key", agent_key)
+        .maybeSingle();
+
+      if (findErr) return json({ error: findErr.message }, 500);
+      if (!agent) return json({ error: "Agent not found" }, 404);
+
+      const metadata = (agent.metadata as Record<string, unknown>) || {};
+      metadata.ingestion_progress = {
+        total: ingestion_total || 0,
+        done: ingestion_done || 0,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error: updateErr } = await supabase
+        .from("agent_registrations")
+        .update({ metadata })
+        .eq("id", agent.id);
+
+      if (updateErr) return json({ error: updateErr.message }, 500);
+      return json({ success: true });
+    }
+
     // --- CHECK SCAN REQUEST (bridge agent polls) ---
     if (action === "check-scan-request" && req.method === "POST") {
       const { agent_key } = await req.json();
