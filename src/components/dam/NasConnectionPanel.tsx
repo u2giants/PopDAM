@@ -78,8 +78,9 @@ const NasConnectionPanel = () => {
     const maxVal = Math.max(...throughputHistory, 100);
     const step = w / (MAX_POINTS - 1);
 
-    const primary = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
-    const borderColor = getComputedStyle(document.documentElement).getPropertyValue('--border').trim();
+    const style = getComputedStyle(document.documentElement);
+    const primary = style.getPropertyValue('--primary').trim().replace(/ /g, ', ');
+    const borderColor = style.getPropertyValue('--border').trim().replace(/ /g, ', ');
 
     ctx.strokeStyle = `hsla(${borderColor}, 0.3)`;
     ctx.lineWidth = 0.5;
