@@ -267,9 +267,65 @@ async function backfillDates() {
   console.log(`[BackfillDates] Done. Updated: ${updated}, Skipped: ${skipped}, Failed: ${failed}`);
 }
 
+/** Reset all local state (scan-state.json + thumbnail cache) */
+async function resetLocalState() {
+  console.log("[Reset] Clearing local scan state and thumbnail cache...");
+
+  // 1. Delete scan-state.json
+  const stateFile = path.join(config.dataDir, "scan-state.json");
+  try {
+    await fs.unlink(stateFile);
+    console.log("[Reset] ✓ Deleted scan-state.json");
+  } catch (err: any) {
+    if (err.code === "ENOENT") console.log("[Reset] scan-state.json not found (already clean)");
+    else console.warn(`[Reset] Failed to delete scan-state.json: ${err.message}`);
+  }
+
+  // 2. Delete thumbnail cache directory
+  const thumbDir = path.join(config.dataDir, "thumbnails");
+  try {
+    await fs.rm(thumbDir, { recursive: true, force: true });
+    console.log("[Reset] ✓ Deleted thumbnail cache");
+  } catch (err: any) {
+    console.warn(`[Reset] Failed to delete thumbnail cache: ${err.message}`);
+  }
+
+  console.log("[Reset] Local state cleared.");
+}
+
 /** Main loop */
 async function main() {
   // Check for CLI modes
+  if (process.argv.includes("--reset")) {
+    const withDb = process.argv.includes("--with-db");
+    await resetLocalState();
+    if (withDb) {
+      console.log("[Reset] Also wiping database tables via API...");
+      try {
+        const agent = await registerAgent();
+        const res = await fetch(`${config.supabaseUrl}/functions/v1/agent-api/full-reset`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: config.supabaseAnonKey,
+            Authorization: `Bearer ${config.supabaseAnonKey}`,
+          },
+          body: JSON.stringify({ agent_key: config.agentKey }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          console.log("[Reset] ✓ Database wiped:", JSON.stringify(data));
+        } else {
+          console.error("[Reset] ✗ Database wipe failed:", JSON.stringify(data));
+        }
+      } catch (err: any) {
+        console.error("[Reset] ✗ Database wipe failed:", err.message);
+      }
+    }
+    console.log("[Reset] Done. Restart the agent to begin a fresh scan.");
+    process.exit(0);
+  }
+
   if (process.argv.includes("--normalize-tiffs")) {
     const folderIdx = process.argv.indexOf("--folder");
     const folder = folderIdx !== -1 ? process.argv[folderIdx + 1] : null;

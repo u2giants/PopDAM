@@ -458,6 +458,59 @@ Deno.serve(async (req) => {
       return json({ scan_requested: !!metadata.scan_requested });
     }
 
+    // --- FULL RESET (nuke all asset data for a clean re-ingest) ---
+    if (action === "full-reset" && req.method === "POST") {
+      const results: Record<string, unknown> = {};
+
+      // Order matters: delete child tables first due to FK constraints
+      const tablesToWipe = [
+        "asset_characters",
+        "asset_path_history",
+        "processing_queue",
+        "render_queue",
+        "assets",
+      ];
+
+      for (const table of tablesToWipe) {
+        const { error, count } = await supabase
+          .from(table)
+          .delete()
+          .neq("id", "00000000-0000-0000-0000-000000000000"); // delete all rows
+        results[table] = error ? `ERROR: ${error.message}` : `deleted`;
+      }
+
+      // Reset agent metadata (clear scan progress, transfer history, lifetime stats)
+      const { agent_key } = await req.json().catch(() => ({}));
+      if (agent_key) {
+        const { data: agent } = await supabase
+          .from("agent_registrations")
+          .select("id")
+          .eq("agent_key", agent_key)
+          .maybeSingle();
+
+        if (agent) {
+          await supabase
+            .from("agent_registrations")
+            .update({
+              metadata: {
+                scan_requested: false,
+                scan_progress: null,
+                ingestion_progress: null,
+                transfer_history: [],
+                transfer_current: null,
+                scan_cycles_completed: 0,
+                total_scanned_lifetime: 0,
+                total_new_lifetime: 0,
+              },
+            })
+            .eq("id", agent.id);
+          results["agent_metadata"] = "reset";
+        }
+      }
+
+      return json({ success: true, results });
+    }
+
     return json({ error: "Unknown action: " + action }, 404);
   } catch (e) {
     return json({ error: e.message }, 500);
