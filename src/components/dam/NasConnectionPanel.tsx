@@ -78,7 +78,10 @@ const NasConnectionPanel = () => {
     const maxVal = Math.max(...throughputHistory, 100);
     const step = w / (MAX_POINTS - 1);
 
-    ctx.strokeStyle = "hsla(var(--border), 0.3)";
+    const primary = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
+    const borderColor = getComputedStyle(document.documentElement).getPropertyValue('--border').trim();
+
+    ctx.strokeStyle = `hsla(${borderColor}, 0.3)`;
     ctx.lineWidth = 0.5;
     for (let i = 1; i <= 3; i++) {
       const y = h - (h * i) / 4;
@@ -89,8 +92,8 @@ const NasConnectionPanel = () => {
     }
 
     const gradient = ctx.createLinearGradient(0, 0, 0, h);
-    gradient.addColorStop(0, "hsla(var(--primary), 0.3)");
-    gradient.addColorStop(1, "hsla(var(--primary), 0.02)");
+    gradient.addColorStop(0, `hsla(${primary}, 0.3)`);
+    gradient.addColorStop(1, `hsla(${primary}, 0.02)`);
 
     ctx.beginPath();
     const startX = w - (throughputHistory.length - 1) * step;
@@ -108,7 +111,7 @@ const NasConnectionPanel = () => {
     ctx.fill();
 
     ctx.beginPath();
-    ctx.strokeStyle = "hsl(var(--primary))";
+    ctx.strokeStyle = `hsl(${primary})`;
     ctx.lineWidth = 1.5;
     ctx.lineJoin = "round";
 
