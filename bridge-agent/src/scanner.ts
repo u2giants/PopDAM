@@ -59,16 +59,31 @@ export async function saveState(state: { lastScanTime: string; knownFiles: Known
   await fs.writeFile(STATE_FILE, JSON.stringify(state, null, 2));
 }
 
-/** Compute SHA-256 of a file (first 64KB for speed on large files) */
+/**
+ * Compute SHA-256 of a file (first 64KB + last 64KB + file size).
+ * Reading head+tail is still very fast on large files but far more
+ * collision-resistant than head-only.
+ */
 async function quickHash(filePath: string): Promise<string> {
   const handle = await fs.open(filePath, "r");
   try {
-    const buf = Buffer.alloc(65536);
-    const { bytesRead } = await handle.read(buf, 0, 65536, 0);
-    const hash = crypto.createHash("sha256");
-    hash.update(buf.subarray(0, bytesRead));
-    // Also include file size for collision avoidance
     const stat = await handle.stat();
+    const hash = crypto.createHash("sha256");
+
+    // Read first 64KB
+    const headBuf = Buffer.alloc(65536);
+    const { bytesRead: headRead } = await handle.read(headBuf, 0, 65536, 0);
+    hash.update(headBuf.subarray(0, headRead));
+
+    // Read last 64KB (if file is large enough that tail differs from head)
+    if (stat.size > 65536) {
+      const tailOffset = Math.max(0, stat.size - 65536);
+      const tailBuf = Buffer.alloc(65536);
+      const { bytesRead: tailRead } = await handle.read(tailBuf, 0, 65536, tailOffset);
+      hash.update(tailBuf.subarray(0, tailRead));
+    }
+
+    // Include file size for additional collision avoidance
     hash.update(stat.size.toString());
     return hash.digest("hex");
   } finally {
@@ -76,11 +91,71 @@ async function quickHash(filePath: string): Promise<string> {
   }
 }
 
-/** Convert container path back to UNC-style NAS path */
+/**
+ * Convert a container path to a UNC-style NAS path.
+ * Uses config.nasMountRoot / nasHost / nasShare to ensure correctness.
+ *
+ * Example: /mnt/nas/mac/Decor/Foo/bar.psd → \\edgesynology2\mac\Decor\Foo\bar.psd
+ */
 function toUncPath(containerPath: string): string {
-  // /mnt/nas/mac/Decor/Foo/bar.psd → \\edgesynology2\mac\Decor\Foo\bar.psd
-  const relative = containerPath.replace(/^\/mnt\/nas\//, "");
-  return `\\\\${config.agentName}\\${relative.replace(/\//g, "\\")}`;
+  const relative = path.relative(config.nasMountRoot, containerPath);
+
+  // Safety: if relative escapes the mount root, something is misconfigured
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error(
+      `[Scanner] File "${containerPath}" is outside NAS_MOUNT_ROOT "${config.nasMountRoot}". ` +
+      `Check your SCAN_ROOTS and NAS_MOUNT_ROOT configuration.`
+    );
+  }
+
+  return `\\\\${config.nasHost}\\${config.nasShare}\\${relative.replace(/\//g, "\\")}`;
+}
+
+/**
+ * Validate that every scan root exists and is a directory.
+ * Throws a fatal error if any root is invalid — this prevents the silent
+ * "scan ran but found nothing" problem caused by misconfigured mounts.
+ */
+export async function validateScanRoots(): Promise<void> {
+  for (const root of config.scanRoots) {
+    try {
+      const stat = await fs.stat(root);
+      if (!stat.isDirectory()) {
+        throw new Error(
+          `SCAN_ROOTS path "${root}" exists but is NOT a directory. ` +
+          `Check your docker-compose volume mounts.`
+        );
+      }
+    } catch (err: any) {
+      if (err.code === "ENOENT") {
+        throw new Error(
+          `\n` +
+          `═══════════════════════════════════════════════════════════════\n` +
+          `  FATAL: SCAN_ROOTS path does not exist inside the container\n` +
+          `\n` +
+          `  Path:  ${root}\n` +
+          `\n` +
+          `  This usually means your docker-compose.yml volume mount\n` +
+          `  does not match your SCAN_ROOTS (or NAS_MOUNT_ROOT) setting.\n` +
+          `\n` +
+          `  Current NAS_MOUNT_ROOT: ${config.nasMountRoot}\n` +
+          `  Current SCAN_ROOTS:     ${config.scanRoots.join(", ")}\n` +
+          `\n` +
+          `  In docker-compose.yml, check the volume line:\n` +
+          `    - /volume1/<share>:${config.nasMountRoot}:ro\n` +
+          `═══════════════════════════════════════════════════════════════\n`
+        );
+      }
+      if (err.code === "EACCES") {
+        throw new Error(
+          `SCAN_ROOTS path "${root}" exists but the agent has no permission to read it. ` +
+          `Check NAS folder permissions for the Docker user.`
+        );
+      }
+      throw err;
+    }
+  }
+  console.log(`[Scanner] ✓ All scan roots validated: ${config.scanRoots.join(", ")}`);
 }
 
 /** Recursively walk directories and yield matching files */
@@ -89,7 +164,8 @@ async function* walkDir(dir: string): AsyncGenerator<string> {
   try {
     entries = await fs.readdir(dir, { withFileTypes: true });
   } catch (err: any) {
-    // Permission denied or broken symlink — skip silently
+    // Permission denied or broken symlink — skip silently for subdirectories
+    // (top-level roots are validated separately by validateScanRoots)
     if (err.code === "EACCES" || err.code === "ENOENT") return;
     throw err;
   }
@@ -122,6 +198,9 @@ export interface ScanResult {
  * saveState() AFTER successful ingestion to persist the known hashes.
  */
 export async function scan(): Promise<ScanResult> {
+  // Validate roots before scanning (fail loudly if misconfigured)
+  await validateScanRoots();
+
   const state = await loadState();
 
   // Build hash→path map for movement detection
@@ -130,21 +209,29 @@ export async function scan(): Promise<ScanResult> {
     hashToPath.set(kf.hash, kf.path);
   }
 
+  // Build a set of known UNC paths for fast skip-if-unchanged
+  const knownPathSet = new Set<string>();
+  for (const kf of state.knownFiles) {
+    if (kf.path) knownPathSet.add(kf.path);
+  }
+
   const sinceDate = new Date(state.lastScanTime);
   const newFiles: ScannedFile[] = [];
   let scannedCount = 0;
+  let skippedUnchanged = 0;
   let movedCount = 0;
   const scanStart = new Date();
 
   console.log(`[Scanner] Starting incremental scan since ${sinceDate.toISOString()}`);
   console.log(`[Scanner] Roots: ${config.scanRoots.join(", ")}`);
+  console.log(`[Scanner] NAS: \\\\${config.nasHost}\\${config.nasShare} → ${config.nasMountRoot}`);
   console.log(`[Scanner] Known files: ${hashToPath.size}`);
 
   for (const root of config.scanRoots) {
     for await (const filePath of walkDir(root)) {
       scannedCount++;
       if (scannedCount % 5000 === 0) {
-        console.log(`[Scanner] Scanned ${scannedCount} files...`);
+        console.log(`[Scanner] Scanned ${scannedCount} files (${skippedUnchanged} skipped unchanged)...`);
         try {
           await reportScanProgress("scanning", scannedCount, newFiles.length);
         } catch { /* don't fail scan for progress reports */ }
@@ -156,9 +243,16 @@ export async function scan(): Promise<ScanResult> {
         // Skip files older than minimum date
         if (stat.mtime < minDate) continue;
 
+        // Optimization: if file hasn't changed since last scan AND we already
+        // know its UNC path, skip the expensive hash computation
+        const uncPath = toUncPath(filePath);
+        if (stat.mtime < sinceDate && knownPathSet.has(uncPath)) {
+          skippedUnchanged++;
+          continue;
+        }
+
         // Compute quick hash for dedup
         const hash = await quickHash(filePath);
-        const uncPath = toUncPath(filePath);
 
         if (hashToPath.has(hash)) {
           const knownPath = hashToPath.get(hash)!;
@@ -208,6 +302,6 @@ export async function scan(): Promise<ScanResult> {
     updatedKnownFiles.push({ hash, path: p });
   }
 
-  console.log(`[Scanner] Complete. Scanned ${scannedCount} files, found ${newFiles.length} new, ${movedCount} moved.`);
+  console.log(`[Scanner] Complete. Scanned ${scannedCount} files, found ${newFiles.length} new, ${movedCount} moved, ${skippedUnchanged} skipped (unchanged).`);
   return { newFiles, updatedKnownFiles, scanStartTime: scanStart.toISOString(), scannedCount, movedCount };
 }

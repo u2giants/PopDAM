@@ -6,9 +6,11 @@ export type HostMode = "hostname" | "ip";
 const ACCESS_MODE_KEY = "dam-access-mode";
 const HOST_MODE_KEY = "dam-path-host-mode";
 const SYNC_ROOT_KEY = "dam-synology-sync-root";
-const DISPLAY_HOST = "edgesynology1";
-const DISPLAY_IP = "192.168.3.100";
-const SOURCE_HOST = "edgesynology2";
+
+// Configurable via environment variables, with backward-compatible defaults
+const SOURCE_HOST = import.meta.env.VITE_SOURCE_HOST || "edgesynology2";
+const DISPLAY_HOST = import.meta.env.VITE_DISPLAY_HOST || "edgesynology1";
+const DISPLAY_IP = import.meta.env.VITE_DISPLAY_IP || "192.168.3.100";
 
 function getStoredAccessMode(): AccessMode {
   try {
