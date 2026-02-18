@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+# Never commit secrets
+**/.env
+bridge-agent/.env
+windows-agent/.env
