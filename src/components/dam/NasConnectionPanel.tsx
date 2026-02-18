@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { Server, Wifi, WifiOff, Clock, HardDrive, ChevronDown, ChevronUp, Play, Loader2, Monitor } from "lucide-react";
+import { Server, Wifi, WifiOff, Clock, HardDrive, ChevronDown, ChevronUp, Play, Loader2, Monitor, FileImage, CheckCircle, XCircle, Timer, Layers } from "lucide-react";
 import { useAllAgents, AgentStatus } from "@/hooks/useAgentStatus";
+import { useRenderStats } from "@/hooks/useRenderStats";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -22,6 +23,8 @@ const AgentCard = ({ agent }: { agent: AgentStatus }) => {
   const isScanning = scanProgress?.status === "scanning" || scanProgress?.status === "processing";
   const scanRequested = agent.metadata?.scan_requested;
   const hasScanCapability = !!agent.metadata?.scan_roots;
+  const isRenderer = !hasScanCapability;
+  const { data: renderStats } = useRenderStats(isRenderer ? agent.agent_name : undefined);
 
   const handleTriggerScan = async () => {
     setTriggering(true);
@@ -219,7 +222,109 @@ const AgentCard = ({ agent }: { agent: AgentStatus }) => {
             )}
           </div>
 
-          {/* Live Upload Throughput Chart */}
+          {/* Render Activity — only for renderer agents */}
+          {isRenderer && renderStats && (
+            <div className="space-y-2.5">
+              {/* 24h Summary */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-secondary/50 rounded-md p-2 text-center">
+                  <div className="text-lg font-bold text-foreground">{renderStats.last24h.completed}</div>
+                  <div className="text-[10px] text-muted-foreground flex items-center justify-center gap-1">
+                    <CheckCircle className="h-2.5 w-2.5 text-success" />
+                    Done (24h)
+                  </div>
+                </div>
+                <div className="bg-secondary/50 rounded-md p-2 text-center">
+                  <div className="text-lg font-bold text-foreground">{renderStats.last24h.failed}</div>
+                  <div className="text-[10px] text-muted-foreground flex items-center justify-center gap-1">
+                    <XCircle className="h-2.5 w-2.5 text-destructive" />
+                    Failed (24h)
+                  </div>
+                </div>
+                <div className="bg-secondary/50 rounded-md p-2 text-center">
+                  <div className="text-lg font-bold text-foreground">{renderStats.pending}</div>
+                  <div className="text-[10px] text-muted-foreground flex items-center justify-center gap-1">
+                    <Layers className="h-2.5 w-2.5" />
+                    Queued
+                  </div>
+                </div>
+              </div>
+
+              {/* Avg duration */}
+              {renderStats.last24h.completed > 0 && (
+                <div className="flex items-center gap-2 text-xs">
+                  <Timer className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-muted-foreground">Avg render time:</span>
+                  <span className="text-foreground ml-auto font-mono">
+                    {renderStats.last24h.avgDurationSec < 60
+                      ? `${renderStats.last24h.avgDurationSec.toFixed(1)}s`
+                      : `${(renderStats.last24h.avgDurationSec / 60).toFixed(1)}m`}
+                  </span>
+                </div>
+              )}
+
+              {/* Currently processing */}
+              {renderStats.currentJob && (
+                <div className="bg-primary/10 border border-primary/20 rounded-md p-2 space-y-1">
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                    <span className="font-medium text-foreground">Rendering now</span>
+                  </div>
+                  <div className="text-[10px] font-mono text-foreground truncate" title={renderStats.currentJob.filename}>
+                    {renderStats.currentJob.filename}
+                  </div>
+                  {renderStats.currentJob.claimed_at && (
+                    <div className="text-[10px] text-muted-foreground">
+                      Started {formatDistanceToNow(new Date(renderStats.currentJob.claimed_at), { addSuffix: true })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Recent jobs */}
+              {renderStats.recentJobs.length > 0 && (
+                <div className="space-y-1">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Recent renders
+                  </span>
+                  <div className="space-y-0.5 max-h-32 overflow-y-auto">
+                    {renderStats.recentJobs.slice(0, 8).map((job) => {
+                      const duration =
+                        job.claimed_at && job.completed_at
+                          ? (new Date(job.completed_at).getTime() - new Date(job.claimed_at).getTime()) / 1000
+                          : null;
+                      return (
+                        <div
+                          key={job.id}
+                          className="flex items-center gap-1.5 text-[10px] py-0.5"
+                          title={job.error_message ?? undefined}
+                        >
+                          {job.status === "completed" ? (
+                            <CheckCircle className="h-2.5 w-2.5 text-success shrink-0" />
+                          ) : (
+                            <XCircle className="h-2.5 w-2.5 text-destructive shrink-0" />
+                          )}
+                          <span className="truncate text-foreground font-mono min-w-0">{job.filename}</span>
+                          {duration !== null && (
+                            <span className="text-muted-foreground ml-auto shrink-0">
+                              {duration < 60 ? `${duration.toFixed(0)}s` : `${(duration / 60).toFixed(1)}m`}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Empty state */}
+              {!renderStats.currentJob && renderStats.recentJobs.length === 0 && renderStats.pending === 0 && (
+                <div className="text-[10px] text-muted-foreground text-center py-2">
+                  No render jobs yet. Queue .ai files to get started.
+                </div>
+              )}
+            </div>
+          )}
           {isOnline && throughputHistory.length > 0 && (
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs">
