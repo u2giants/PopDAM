@@ -37,9 +37,17 @@ export async function registerAgent() {
   return result.agent;
 }
 
-/** Send heartbeat */
-export async function heartbeat() {
-  return post("heartbeat", { agent_key: config.agentKey });
+/** Send heartbeat with optional transfer stats */
+export async function heartbeat(transferStats?: {
+  bytes_uploaded: number;
+  files_uploaded: number;
+  elapsed_ms: number;
+  bytes_per_sec: number;
+}) {
+  return post("heartbeat", {
+    agent_key: config.agentKey,
+    transfer_stats: transferStats || null,
+  });
 }
 
 /** Ingest a new asset */

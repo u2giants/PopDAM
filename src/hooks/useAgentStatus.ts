@@ -9,6 +9,20 @@ export interface ScanProgress {
   updated_at: string;
 }
 
+export interface TransferPoint {
+  bytes_per_sec: number;
+  bytes_uploaded: number;
+  files_uploaded: number;
+  ts: string;
+}
+
+export interface TransferCurrent {
+  bytes_uploaded: number;
+  files_uploaded: number;
+  elapsed_ms: number;
+  bytes_per_sec: number;
+}
+
 export interface AgentStatus {
   id: string;
   agent_name: string;
@@ -22,6 +36,8 @@ export interface AgentStatus {
     scan_requested?: boolean;
     scan_requested_at?: string;
     scan_progress?: ScanProgress;
+    transfer_history?: TransferPoint[];
+    transfer_current?: TransferCurrent;
   } | null;
 }
 

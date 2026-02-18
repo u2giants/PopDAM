@@ -13,7 +13,7 @@ const NasConnectionPanel = () => {
   const { data: agent, isLoading } = useAgentStatus();
   const [expanded, setExpanded] = useState(false);
   const [throughputHistory, setThroughputHistory] = useState<number[]>([]);
-  const [currentKbps, setCurrentKbps] = useState(0);
+  const [currentBps, setCurrentBps] = useState(0);
   const [triggering, setTriggering] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -37,24 +37,17 @@ const NasConnectionPanel = () => {
     }
   };
 
-  // Simulate bandwidth monitoring
+  // Use real transfer data from agent heartbeats
   useEffect(() => {
-    if (!expanded || !agent?.isOnline) return;
+    if (!agent?.metadata?.transfer_history) return;
 
-    const interval = setInterval(() => {
-      const base = agent.isOnline ? 12 + Math.random() * 45 : 0;
-      const spike = Math.random() > 0.85 ? Math.random() * 200 : 0;
-      const kbps = Math.round(base + spike);
+    const history = agent.metadata.transfer_history;
+    const bpsValues = history.map((p) => p.bytes_per_sec);
+    setThroughputHistory(bpsValues);
 
-      setCurrentKbps(kbps);
-      setThroughputHistory((prev) => {
-        const next = [...prev, kbps];
-        return next.length > MAX_POINTS ? next.slice(-MAX_POINTS) : next;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [expanded, agent?.isOnline]);
+    const current = agent.metadata.transfer_current;
+    setCurrentBps(current?.bytes_per_sec ?? 0);
+  }, [agent?.metadata?.transfer_history, agent?.metadata?.transfer_current]);
 
   // Draw chart
   useEffect(() => {
@@ -126,9 +119,11 @@ const NasConnectionPanel = () => {
     ctx.stroke();
   }, [throughputHistory, expanded]);
 
-  const formatBandwidth = (kbps: number) => {
-    if (kbps >= 1000) return `${(kbps / 1000).toFixed(1)} Mbps`;
-    return `${kbps} Kbps`;
+  const formatBandwidth = (bps: number) => {
+    if (bps === 0) return "0 B/s";
+    if (bps >= 1_000_000) return `${(bps / 1_000_000).toFixed(1)} MB/s`;
+    if (bps >= 1_000) return `${(bps / 1_000).toFixed(1)} KB/s`;
+    return `${bps} B/s`;
   };
 
   if (isLoading) {
@@ -257,24 +252,32 @@ const NasConnectionPanel = () => {
             )}
           </div>
 
-          {/* Live Bandwidth Chart */}
+          {/* Live Upload Throughput Chart */}
           {isOnline && (
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Throughput</span>
-                <span className="font-mono text-foreground">{formatBandwidth(currentKbps)}</span>
+                <span className="text-muted-foreground">Upload Throughput</span>
+                <span className="font-mono text-foreground">{formatBandwidth(currentBps)}</span>
               </div>
-              <div className="bg-secondary/50 rounded-md p-1">
-                <canvas
-                  ref={canvasRef}
-                  className="w-full h-16 rounded"
-                  style={{ display: "block" }}
-                />
-              </div>
-              <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
-                <span>60s ago</span>
-                <span>now</span>
-              </div>
+              {throughputHistory.length > 0 ? (
+                <>
+                  <div className="bg-secondary/50 rounded-md p-1">
+                    <canvas
+                      ref={canvasRef}
+                      className="w-full h-16 rounded"
+                      style={{ display: "block" }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
+                    <span>{throughputHistory.length}m ago</span>
+                    <span>now</span>
+                  </div>
+                </>
+              ) : (
+                <div className="text-[10px] text-muted-foreground">
+                  Waiting for transfer data from agent heartbeats...
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -2,6 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import { config } from "./config";
+import { recordUpload } from "./transferStats";
 
 /**
  * Upload a file to DigitalOcean Spaces (S3-compatible).
@@ -78,6 +79,9 @@ export async function uploadToSpaces(
     const body = await res.text();
     throw new Error(`S3 upload failed (${res.status}): ${body}`);
   }
+
+  // Track transfer stats
+  recordUpload(fileBuffer.length);
 
   // Return the CDN URL
   return `${endpoint}/${key}`;
