@@ -314,6 +314,88 @@ Deno.serve(async (req) => {
       return json({ success: true });
     }
 
+    // --- TRIGGER SCAN (UI requests a scan) ---
+    if (action === "trigger-scan" && req.method === "POST") {
+      const { agent_key } = await req.json();
+      if (!agent_key) return json({ error: "agent_key required" }, 400);
+
+      const { data: agent, error: findErr } = await supabase
+        .from("agent_registrations")
+        .select("id, metadata")
+        .eq("agent_key", agent_key)
+        .maybeSingle();
+
+      if (findErr) return json({ error: findErr.message }, 500);
+      if (!agent) return json({ error: "Agent not found" }, 404);
+
+      const metadata = (agent.metadata as Record<string, unknown>) || {};
+      metadata.scan_requested = true;
+      metadata.scan_requested_at = new Date().toISOString();
+
+      const { error: updateErr } = await supabase
+        .from("agent_registrations")
+        .update({ metadata })
+        .eq("id", agent.id);
+
+      if (updateErr) return json({ error: updateErr.message }, 500);
+      return json({ success: true, message: "Scan requested" });
+    }
+
+    // --- UPDATE SCAN PROGRESS (bridge agent reports progress) ---
+    if (action === "scan-progress" && req.method === "POST") {
+      const { agent_key, scan_status, scanned_count, new_count, total_estimate } = await req.json();
+      if (!agent_key) return json({ error: "agent_key required" }, 400);
+
+      const { data: agent, error: findErr } = await supabase
+        .from("agent_registrations")
+        .select("id, metadata")
+        .eq("agent_key", agent_key)
+        .maybeSingle();
+
+      if (findErr) return json({ error: findErr.message }, 500);
+      if (!agent) return json({ error: "Agent not found" }, 404);
+
+      const metadata = (agent.metadata as Record<string, unknown>) || {};
+      metadata.scan_progress = {
+        status: scan_status, // "scanning" | "processing" | "idle"
+        scanned_count: scanned_count || 0,
+        new_count: new_count || 0,
+        total_estimate: total_estimate || 0,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Clear request flag if scan is complete
+      if (scan_status === "idle") {
+        metadata.scan_requested = false;
+      }
+
+      const { error: updateErr } = await supabase
+        .from("agent_registrations")
+        .update({ metadata })
+        .eq("id", agent.id);
+
+      if (updateErr) return json({ error: updateErr.message }, 500);
+      return json({ success: true });
+    }
+
+    // --- CHECK SCAN REQUEST (bridge agent polls) ---
+    if (action === "check-scan-request" && req.method === "POST") {
+      const { agent_key } = await req.json();
+      if (!agent_key) return json({ error: "agent_key required" }, 400);
+
+      const { data: agent, error: findErr } = await supabase
+        .from("agent_registrations")
+        .select("id, metadata")
+        .eq("agent_key", agent_key)
+        .maybeSingle();
+
+      if (findErr) return json({ error: findErr.message }, 500);
+      if (!agent) return json({ error: "Agent not found" }, 404);
+
+      const metadata = (agent.metadata as Record<string, unknown>) || {};
+      return json({ scan_requested: !!metadata.scan_requested });
+    }
+
     return json({ error: "Unknown action: " + action }, 404);
   } catch (e) {
     return json({ error: e.message }, 500);

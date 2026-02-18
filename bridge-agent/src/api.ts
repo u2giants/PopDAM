@@ -113,3 +113,19 @@ export async function completeRender(
     error_message: errorMessage,
   });
 }
+
+/** Check if UI has requested a scan */
+export async function checkScanRequest() {
+  return post("check-scan-request", { agent_key: config.agentKey });
+}
+
+/** Report scan progress to the API */
+export async function reportScanProgress(scanStatus: string, scannedCount: number, newCount: number, totalEstimate?: number) {
+  return post("scan-progress", {
+    agent_key: config.agentKey,
+    scan_status: scanStatus,
+    scanned_count: scannedCount,
+    new_count: newCount,
+    total_estimate: totalEstimate || 0,
+  });
+}
