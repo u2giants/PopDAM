@@ -511,6 +511,53 @@ Deno.serve(async (req) => {
       return json({ success: true, results });
     }
 
+    // --- GET SCAN ROOTS (UI reads current config) ---
+    if (action === "get-scan-roots" && req.method === "POST") {
+      const { agent_key } = await req.json();
+      if (!agent_key) return json({ error: "agent_key required" }, 400);
+
+      const { data: agent, error: findErr } = await supabase
+        .from("agent_registrations")
+        .select("id, metadata")
+        .eq("agent_key", agent_key)
+        .maybeSingle();
+
+      if (findErr) return json({ error: findErr.message }, 500);
+      if (!agent) return json({ error: "Agent not found" }, 404);
+
+      const metadata = (agent.metadata as Record<string, unknown>) || {};
+      return json({
+        scan_roots: (metadata.configured_scan_roots as string[]) || (metadata.scan_roots as string[]) || [],
+      });
+    }
+
+    // --- SET SCAN ROOTS (UI updates config, agent picks up on next cycle) ---
+    if (action === "set-scan-roots" && req.method === "POST") {
+      const { agent_key, scan_roots } = await req.json();
+      if (!agent_key) return json({ error: "agent_key required" }, 400);
+      if (!Array.isArray(scan_roots)) return json({ error: "scan_roots must be an array" }, 400);
+
+      const { data: agent, error: findErr } = await supabase
+        .from("agent_registrations")
+        .select("id, metadata")
+        .eq("agent_key", agent_key)
+        .maybeSingle();
+
+      if (findErr) return json({ error: findErr.message }, 500);
+      if (!agent) return json({ error: "Agent not found" }, 404);
+
+      const metadata = (agent.metadata as Record<string, unknown>) || {};
+      metadata.configured_scan_roots = scan_roots;
+
+      const { error: updateErr } = await supabase
+        .from("agent_registrations")
+        .update({ metadata })
+        .eq("id", agent.id);
+
+      if (updateErr) return json({ error: updateErr.message }, 500);
+      return json({ success: true, scan_roots });
+    }
+
     return json({ error: "Unknown action: " + action }, 404);
   } catch (e) {
     return json({ error: e.message }, 500);

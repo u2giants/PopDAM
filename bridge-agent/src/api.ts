@@ -146,3 +146,13 @@ export async function reportIngestionProgress(total: number, done: number) {
     ingestion_done: done,
   });
 }
+
+/** Fetch configured scan roots from the API (set via admin UI) */
+export async function getConfiguredScanRoots(): Promise<string[] | null> {
+  try {
+    const result = await post("get-scan-roots", { agent_key: config.agentKey });
+    return result.scan_roots || null;
+  } catch {
+    return null;
+  }
+}

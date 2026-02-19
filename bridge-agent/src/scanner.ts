@@ -116,8 +116,9 @@ function toUncPath(containerPath: string): string {
  * Throws a fatal error if any root is invalid — this prevents the silent
  * "scan ran but found nothing" problem caused by misconfigured mounts.
  */
-export async function validateScanRoots(): Promise<void> {
-  for (const root of config.scanRoots) {
+export async function validateScanRoots(roots?: string[]): Promise<void> {
+  const scanRoots = roots || config.scanRoots;
+  for (const root of scanRoots) {
     try {
       const stat = await fs.stat(root);
       if (!stat.isDirectory()) {
@@ -139,7 +140,7 @@ export async function validateScanRoots(): Promise<void> {
           `  does not match your SCAN_ROOTS (or NAS_MOUNT_ROOT) setting.\n` +
           `\n` +
           `  Current NAS_MOUNT_ROOT: ${config.nasMountRoot}\n` +
-          `  Current SCAN_ROOTS:     ${config.scanRoots.join(", ")}\n` +
+          `  Current SCAN_ROOTS:     ${scanRoots.join(", ")}\n` +
           `\n` +
           `  In docker-compose.yml, check the volume line:\n` +
           `    - /volume1/<share>:${config.nasMountRoot}:ro\n` +
@@ -155,7 +156,7 @@ export async function validateScanRoots(): Promise<void> {
       throw err;
     }
   }
-  console.log(`[Scanner] ✓ All scan roots validated: ${config.scanRoots.join(", ")}`);
+  console.log(`[Scanner] ✓ All scan roots validated: ${scanRoots.join(", ")}`);
 }
 
 /** Recursively walk directories and yield matching files */
@@ -197,9 +198,11 @@ export interface ScanResult {
  * IMPORTANT: This function does NOT save state. The caller must call
  * saveState() AFTER successful ingestion to persist the known hashes.
  */
-export async function scan(): Promise<ScanResult> {
+export async function scan(overrideRoots?: string[]): Promise<ScanResult> {
+  const scanRoots = overrideRoots && overrideRoots.length > 0 ? overrideRoots : config.scanRoots;
+
   // Validate roots before scanning (fail loudly if misconfigured)
-  await validateScanRoots();
+  await validateScanRoots(scanRoots);
 
   const state = await loadState();
 
@@ -223,11 +226,11 @@ export async function scan(): Promise<ScanResult> {
   const scanStart = new Date();
 
   console.log(`[Scanner] Starting incremental scan since ${sinceDate.toISOString()}`);
-  console.log(`[Scanner] Roots: ${config.scanRoots.join(", ")}`);
+  console.log(`[Scanner] Roots: ${scanRoots.join(", ")}`);
   console.log(`[Scanner] NAS: \\\\${config.nasHost}\\${config.nasShare} → ${config.nasMountRoot}`);
   console.log(`[Scanner] Known files: ${hashToPath.size}`);
 
-  for (const root of config.scanRoots) {
+  for (const root of scanRoots) {
     for await (const filePath of walkDir(root)) {
       scannedCount++;
       if (scannedCount % 5000 === 0) {
