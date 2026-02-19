@@ -190,6 +190,80 @@ const AssetDetailPanel = ({ asset, onClose, onTagSuccess }: AssetDetailPanelProp
 
       <Separator />
 
+      {/* Classification */}
+      {(asset.property || asset.characters?.length > 0 || (asset as any).is_licensed || (asset as any).asset_type || (asset as any).art_source) && (
+        <div className="px-4 py-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Tag className="h-3 w-3 text-muted-foreground" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Classification</span>
+          </div>
+          <div className="space-y-2">
+            {asset.property && (
+              <div className="flex justify-between">
+                <span className="text-xs text-muted-foreground">Property</span>
+                <span className="text-xs text-foreground">{asset.property.name}</span>
+              </div>
+            )}
+            {asset.property?.licensor && (
+              <div className="flex justify-between">
+                <span className="text-xs text-muted-foreground">Licensor</span>
+                <span className="text-xs text-foreground">{asset.property.licensor.name}</span>
+              </div>
+            )}
+            {asset.characters && asset.characters.length > 0 && (
+              <div className="flex justify-between items-start">
+                <span className="text-xs text-muted-foreground">Characters</span>
+                <div className="flex flex-wrap gap-1 justify-end max-w-[60%]">
+                  {asset.characters.map((c) => (
+                    <Badge key={c.id} variant="secondary" className="text-[10px] px-1.5 py-0">{c.name}</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+            {asset.product_subtype && (
+              <>
+                {asset.product_subtype.product_type?.product_category && (
+                  <div className="flex justify-between">
+                    <span className="text-xs text-muted-foreground">Category</span>
+                    <span className="text-xs text-foreground">{asset.product_subtype.product_type.product_category.name}</span>
+                  </div>
+                )}
+                {asset.product_subtype.product_type && (
+                  <div className="flex justify-between">
+                    <span className="text-xs text-muted-foreground">Product Type</span>
+                    <span className="text-xs text-foreground">{asset.product_subtype.product_type.name}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-xs text-muted-foreground">Subtype</span>
+                  <span className="text-xs text-foreground">{asset.product_subtype.name}</span>
+                </div>
+              </>
+            )}
+            <div className="flex justify-between">
+              <span className="text-xs text-muted-foreground">License</span>
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                {(asset as any).is_licensed ? "Licensed" : "Generic"}
+              </Badge>
+            </div>
+            {(asset as any).asset_type && (
+              <div className="flex justify-between">
+                <span className="text-xs text-muted-foreground">Asset Type</span>
+                <span className="text-xs text-foreground capitalize">{(asset as any).asset_type?.replace("_", " ")}</span>
+              </div>
+            )}
+            {(asset as any).art_source && (
+              <div className="flex justify-between">
+                <span className="text-xs text-muted-foreground">Art Source</span>
+                <span className="text-xs text-foreground capitalize">{(asset as any).art_source?.replace(/_/g, " ")}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <Separator />
+
       {/* Tags */}
       {asset.tags && asset.tags.length > 0 && (
         <div className="px-4 py-3">
@@ -204,6 +278,36 @@ const AssetDetailPanel = ({ asset, onClose, onTagSuccess }: AssetDetailPanelProp
               </Badge>
             ))}
           </div>
+        </div>
+      )}
+
+      <Separator />
+
+      {/* Scene / Theme */}
+      {((asset as any).scene_description || (asset as any).big_theme || (asset as any).little_theme) && (
+        <div className="px-4 py-3 space-y-2">
+          <div className="flex items-center gap-2 mb-1">
+            <Sparkles className="h-3 w-3 text-muted-foreground" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Themes</span>
+          </div>
+          {(asset as any).big_theme && (
+            <div className="flex justify-between">
+              <span className="text-xs text-muted-foreground">Big Theme</span>
+              <span className="text-xs text-foreground">{(asset as any).big_theme}</span>
+            </div>
+          )}
+          {(asset as any).little_theme && (
+            <div className="flex justify-between">
+              <span className="text-xs text-muted-foreground">Little Theme</span>
+              <span className="text-xs text-foreground">{(asset as any).little_theme}</span>
+            </div>
+          )}
+          {(asset as any).scene_description && (
+            <div>
+              <span className="text-xs text-muted-foreground">Scene</span>
+              <p className="text-xs text-foreground mt-0.5">{(asset as any).scene_description}</p>
+            </div>
+          )}
         </div>
       )}
 
