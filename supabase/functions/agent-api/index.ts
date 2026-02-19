@@ -15,6 +15,14 @@ function deriveWorkflowStatus(filePath: string): string | null {
   return null;
 }
 
+/** Derive is_licensed from folder path */
+function deriveIsLicensed(filePath: string): boolean {
+  const lower = filePath.toLowerCase().replace(/\\/g, "/");
+  if (lower.includes("character licensed")) return true;
+  if (lower.includes("generic decor")) return false;
+  return false; // default to generic if path doesn't match either
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -144,6 +152,7 @@ Deno.serve(async (req) => {
       }
 
       const workflow_status = deriveWorkflowStatus(file_path);
+      const is_licensed = deriveIsLicensed(file_path);
 
       const { data: asset, error: assetError } = await supabase
         .from("assets")
@@ -160,6 +169,7 @@ Deno.serve(async (req) => {
           file_created_at: file_created_at || null,
           status: "pending",
           workflow_status,
+          is_licensed,
         })
         .select()
         .single();
