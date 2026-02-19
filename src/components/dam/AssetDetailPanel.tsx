@@ -191,7 +191,7 @@ const AssetDetailPanel = ({ asset, onClose, onTagSuccess }: AssetDetailPanelProp
       <Separator />
 
       {/* Classification */}
-      {(asset.property || asset.characters?.length > 0 || (asset as any).is_licensed || (asset as any).asset_type || (asset as any).art_source) && (
+      {(asset.property || asset.characters?.length > 0 || asset.is_licensed !== undefined || asset.asset_type || asset.art_source) && (
         <div className="px-4 py-3">
           <div className="flex items-center gap-2 mb-2">
             <Tag className="h-3 w-3 text-muted-foreground" />
@@ -243,19 +243,19 @@ const AssetDetailPanel = ({ asset, onClose, onTagSuccess }: AssetDetailPanelProp
             <div className="flex justify-between">
               <span className="text-xs text-muted-foreground">License</span>
               <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                {(asset as any).is_licensed ? "Licensed" : "Generic"}
+                {asset.is_licensed ? "Licensed" : "Generic"}
               </Badge>
             </div>
-            {(asset as any).asset_type && (
+            {asset.asset_type && (
               <div className="flex justify-between">
                 <span className="text-xs text-muted-foreground">Asset Type</span>
-                <span className="text-xs text-foreground capitalize">{(asset as any).asset_type?.replace("_", " ")}</span>
+                <span className="text-xs text-foreground capitalize">{asset.asset_type.replace("_", " ")}</span>
               </div>
             )}
-            {(asset as any).art_source && (
+            {asset.art_source && (
               <div className="flex justify-between">
                 <span className="text-xs text-muted-foreground">Art Source</span>
-                <span className="text-xs text-foreground capitalize">{(asset as any).art_source?.replace(/_/g, " ")}</span>
+                <span className="text-xs text-foreground capitalize">{asset.art_source.replace(/_/g, " ")}</span>
               </div>
             )}
           </div>
