@@ -1,7 +1,7 @@
 import path from "path";
 import fs from "fs/promises";
 import { config } from "./config";
-import { registerAgent, heartbeat, ingestAsset, updateAsset, queueRender, checkScanRequest, reportScanProgress, reportIngestionProgress } from "./api";
+import { registerAgent, heartbeat, ingestAsset, updateAsset, queueRender, checkScanRequest, reportScanProgress, reportIngestionProgress, getConfiguredScanRoots } from "./api";
 import { scan, saveState, validateScanRoots, ScannedFile, ScanResult } from "./scanner";
 import { generateThumbnail, readThumbnailBase64 } from "./thumbnail";
 import { uploadToSpaces } from "./s3";
@@ -443,7 +443,12 @@ async function main() {
 
 async function runScanCycle() {
   try {
-    const result: ScanResult = await scan();
+    // Fetch scan roots from admin UI config, falling back to env vars
+    const remoteRoots = await getConfiguredScanRoots();
+    const scanRoots = remoteRoots && remoteRoots.length > 0 ? remoteRoots : config.scanRoots;
+    console.log(`[Agent] Using scan roots: ${scanRoots.join(", ")}`);
+
+    const result: ScanResult = await scan(scanRoots);
     const { newFiles, updatedKnownFiles, scanStartTime } = result;
 
     if (newFiles.length > 0) {

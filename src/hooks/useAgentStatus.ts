@@ -38,6 +38,7 @@ export interface AgentStatus {
   metadata: {
     hostname?: string;
     scan_roots?: string[];
+    configured_scan_roots?: string[];
     started_at?: string;
     scan_requested?: boolean;
     scan_requested_at?: string;

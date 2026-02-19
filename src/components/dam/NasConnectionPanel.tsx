@@ -1,12 +1,101 @@
 import { useState, useEffect, useRef } from "react";
-import { Server, Wifi, WifiOff, Clock, HardDrive, ChevronDown, ChevronUp, Play, Loader2, Monitor, FileImage, CheckCircle, XCircle, Timer, Layers } from "lucide-react";
+import { Server, Wifi, WifiOff, Clock, HardDrive, ChevronDown, ChevronUp, Play, Loader2, Monitor, FileImage, CheckCircle, XCircle, Timer, Layers, FolderPlus, Trash2, Save } from "lucide-react";
 import { useAllAgents, AgentStatus } from "@/hooks/useAgentStatus";
 import { useRenderStats } from "@/hooks/useRenderStats";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+
+/* ─── Scan Roots Editor ─── */
+const ScanRootsEditor = ({ agent }: { agent: AgentStatus }) => {
+  const currentRoots = agent.metadata?.configured_scan_roots || agent.metadata?.scan_roots || [];
+  const [roots, setRoots] = useState<string[]>(currentRoots);
+  const [newRoot, setNewRoot] = useState("");
+  const [saving, setSaving] = useState(false);
+  const hasChanges = JSON.stringify(roots) !== JSON.stringify(currentRoots);
+
+  useEffect(() => {
+    const updated = agent.metadata?.configured_scan_roots || agent.metadata?.scan_roots || [];
+    setRoots(updated);
+  }, [agent.metadata?.configured_scan_roots, agent.metadata?.scan_roots]);
+
+  const handleAdd = () => {
+    const trimmed = newRoot.trim();
+    if (!trimmed || roots.includes(trimmed)) return;
+    setRoots([...roots, trimmed]);
+    setNewRoot("");
+  };
+
+  const handleRemove = (index: number) => {
+    setRoots(roots.filter((_, i) => i !== index));
+  };
+
+  const handleSave = async () => {
+    if (roots.length === 0) {
+      toast.error("At least one scan root is required");
+      return;
+    }
+    setSaving(true);
+    try {
+      const { error } = await supabase.functions.invoke("agent-api/set-scan-roots", {
+        body: { agent_key: agent.agent_key, scan_roots: roots },
+      });
+      if (error) throw error;
+      toast.success("Scan roots updated — changes take effect on next scan cycle");
+    } catch (err: any) {
+      toast.error(`Failed to save: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <span className="text-muted-foreground text-xs">Scan roots:</span>
+      {roots.map((root, i) => (
+        <div key={i} className="flex items-center gap-1 group">
+          <div className="text-foreground font-mono text-[10px] pl-3 truncate flex-1" title={root}>
+            {root}
+          </div>
+          <button
+            onClick={() => handleRemove(i)}
+            className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive/80 p-0.5"
+            title="Remove"
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
+        </div>
+      ))}
+      <div className="flex items-center gap-1 pl-3">
+        <Input
+          value={newRoot}
+          onChange={(e) => setNewRoot(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+          placeholder="/mnt/nas/mac/Decor/NewFolder"
+          className="h-6 text-[10px] font-mono flex-1"
+        />
+        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={handleAdd} disabled={!newRoot.trim()}>
+          <FolderPlus className="h-3 w-3" />
+        </Button>
+      </div>
+      {hasChanges && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-6 text-[10px] gap-1 ml-3"
+          onClick={handleSave}
+          disabled={saving}
+        >
+          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+          Save Changes
+        </Button>
+      )}
+    </div>
+  );
+};
 
 const MAX_POINTS = 60;
 
@@ -233,14 +322,7 @@ const AgentCard = ({ agent }: { agent: AgentStatus }) => {
               </span>
             </div>
             {agent.metadata?.scan_roots && (
-              <div className="space-y-1">
-                <span className="text-muted-foreground">Scan roots:</span>
-                {agent.metadata.scan_roots.map((root, i) => (
-                  <div key={i} className="text-foreground font-mono text-[10px] pl-5 truncate" title={root}>
-                    {root}
-                  </div>
-                ))}
-              </div>
+              <ScanRootsEditor agent={agent} />
             )}
             {agent.metadata?.started_at && (
               <div className="flex items-center gap-2">
